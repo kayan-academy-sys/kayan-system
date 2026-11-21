@@ -1,0 +1,50 @@
+<%- include('../partials/top', {title, nav:'installments'}) %>
+<div class="tabs">
+  <a href="/accounting/installments" class="<%= filter==='all'?'active':'' %>">الكل</a>
+  <a href="/accounting/installments?f=today" class="<%= filter==='today'?'active':'' %>">مستحقة اليوم</a>
+  <a href="/accounting/installments?f=overdue" class="<%= filter==='overdue'?'active':'' %>">متأخرة</a>
+  <a href="/accounting/installments?f=upcoming" class="<%= filter==='upcoming'?'active':'' %>">قادمة</a>
+</div>
+<div class="card">
+  <table>
+    <tr><th>العميل</th><th>الهاتف</th><th>الحجز</th><th>قسط #</th><th>القيمة</th><th>الاستحقاق</th><th>الأصلي</th><th>المدفوع</th><th>الحالة</th><th></th></tr>
+    <% rows.forEach(i => { const isLate = i.status==='pending' && new Date(i.due_date) < new Date() && parseFloat(i.paid) < parseFloat(i.amount); %>
+    <tr style="<%= isLate ? 'background:#fdeae8' : '' %>">
+      <td><%= i.customer_name %></td><td dir="ltr"><%= i.customer_phone %></td>
+      <td><a href="/orders/<%= i.order_id %>">#<%= i.order_id %></a></td>
+      <td><%= i.seq %></td><td><%= Number(i.amount).toLocaleString('ar-EG') %></td>
+      <td><%= new Date(i.due_date).toLocaleDateString('ar-EG') %></td>
+      <td class="muted"><%= new Date(i.original_due_date).toLocaleDateString('ar-EG') %><%= i.postpone_reason ? ' (' + i.postpone_reason + ')' : '' %></td>
+      <td><%= Number(i.paid).toLocaleString('ar-EG') %></td>
+      <td><span class="badge <%= i.status==='paid'?'green':isLate?'red':'teal' %>"><%= i.status==='paid'?'مسدد':isLate?'متأخر':'قادم' %></span></td>
+      <td class="flex">
+        <% if (canPay && i.status==='pending' && parseFloat(i.paid) < parseFloat(i.amount)) { %>
+        <details><summary class="btn sm">تحصيل</summary>
+          <form method="post" action="/accounting/payments" class="mt">
+            <input type="hidden" name="_csrf" value="<%= csrf %>">
+            <input type="hidden" name="order_id" value="<%= i.order_id %>">
+            <input type="hidden" name="installment_id" value="<%= i.id %>">
+            <input type="number" step="0.01" name="amount" value="<%= (parseFloat(i.amount)-parseFloat(i.paid)).toFixed(2) %>" required>
+            <select name="method"><% Object.entries(L.paymentMethod).forEach(([k,v]) => { %><option value="<%= k %>"><%= v %></option><% }) %></select>
+            <select name="account_id"><option value="1">الخزينة</option><option value="2">الحساب البنكي</option><option value="3">إنستاباي</option><option value="4">المحفظة الإلكترونية</option></select>
+            <button class="btn sm mt">تسجيل</button>
+          </form>
+        </details>
+        <% } %>
+        <% if (canManage && i.status==='pending') { %>
+        <details><summary class="btn ghost sm">تأجيل</summary>
+          <form method="post" action="/accounting/installments/<%= i.id %>/postpone" class="mt">
+            <input type="hidden" name="_csrf" value="<%= csrf %>">
+            <input type="date" name="new_date" required>
+            <input name="reason" placeholder="سبب التأجيل *" required>
+            <button class="btn orange sm mt">تأجيل</button>
+          </form>
+        </details>
+        <% } %>
+      </td>
+    </tr>
+    <% }) %>
+    <% if (!rows.length) { %><tr><td colspan="10" class="muted">لا توجد أقساط في هذا العرض.</td></tr><% } %>
+  </table>
+</div>
+<%- include('../partials/bottom') %>

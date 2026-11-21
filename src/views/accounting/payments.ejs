@@ -1,0 +1,33 @@
+<%- include('../partials/top', {title, nav:'payments'}) %>
+<div class="card">
+  <h2>سجل المدفوعات</h2>
+  <p class="muted">العمليات المالية لا تُحذف نهائيًا؛ الأخطاء تُعالج بالإلغاء (العكس المالي) مع توثيق السبب والمنفذ.</p>
+  <table class="mt">
+    <tr><th>التاريخ</th><th>الحجز</th><th>العميل</th><th>المبلغ</th><th>الطريقة</th><th>الحساب</th><th>سجلها</th><th>الحالة</th><th></th></tr>
+    <% rows.forEach(p => { %>
+    <tr style="<%= p.status==='voided' ? 'opacity:.55' : '' %>">
+      <td class="muted" style="white-space:nowrap"><%= new Date(p.paid_at).toLocaleString('ar-EG') %></td>
+      <td><a href="/orders/<%= p.order_id %>">#<%= p.order_id %></a></td>
+      <td><%= p.customer_name %></td>
+      <td><b><%= Number(p.amount).toLocaleString('ar-EG') %></b></td>
+      <td><%= L.paymentMethod[p.method] %></td><td><%= p.account_name %></td>
+      <td class="muted"><%= p.received_by_name || '—' %></td>
+      <td><span class="badge <%= p.status==='active'?'green':'red' %>"><%= p.status==='active'?'نشطة':'ملغاة' %></span>
+        <% if (p.status==='voided') { %><br><span class="muted"><%= p.void_reason %> — <%= p.voided_by_name %></span><% } %></td>
+      <td>
+        <% if (canVoid && p.status==='active') { %>
+        <details><summary class="btn danger sm">إلغاء</summary>
+          <form method="post" action="/accounting/payments/<%= p.id %>/void" class="mt">
+            <input type="hidden" name="_csrf" value="<%= csrf %>">
+            <input name="reason" placeholder="سبب الإلغاء *" required>
+            <button class="btn danger sm mt">تأكيد</button>
+          </form>
+        </details>
+        <% } %>
+      </td>
+    </tr>
+    <% }) %>
+    <% if (!rows.length) { %><tr><td colspan="9" class="muted">لا توجد مدفوعات.</td></tr><% } %>
+  </table>
+</div>
+<%- include('../partials/bottom') %>

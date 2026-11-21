@@ -32,8 +32,9 @@ app.use((req, res, next) => {
 app.use('/static', express.static(path.join(__dirname, 'public'), { maxAge: '7d' }));
 app.use(loadUser);
 
-// Webhook واتساب لا يحتاج CSRF (له توقيع خاص)
+// Webhook واتساب ونقطة cron لا يحتاجان CSRF (محميان بأسرار خاصة)
 app.use('/api/webhooks', require('./routes/webhooks'));
+app.use('/api/cron', require('./routes/cron'));
 
 app.use(csrfCheck);
 
@@ -53,7 +54,6 @@ app.use('/reception', require('./routes/reception'));
 app.use('/reports', require('./routes/reports'));
 app.use('/automation', require('./routes/automation'));
 app.use('/assistant', require('./routes/assistant'));
-app.use('/api/cron', require('./routes/cron'));
 
 // إشعارات المستخدم
 app.use('/notifications', require('./routes/notifications'));

@@ -1,0 +1,44 @@
+<%- include('../partials/top', {title, nav:'accounting'}) %>
+<div class="grid c4">
+  <div class="stat"><div class="num"><%= Number(totals.collected_today).toLocaleString('ar-EG') %></div><div class="lbl">تحصيل اليوم (ج.م)</div></div>
+  <div class="stat"><div class="num"><%= Number(totals.collected_total).toLocaleString('ar-EG') %></div><div class="lbl">إجمالي التحصيل</div></div>
+  <div class="stat orange"><div class="num"><%= Number(outstanding.due).toLocaleString('ar-EG') %></div><div class="lbl">أرصدة مستحقة</div></div>
+  <div class="stat orange"><div class="num"><%= inst.overdue %></div><div class="lbl">أقساط متأخرة (<%= Number(inst.overdue_amount).toLocaleString('ar-EG') %> ج.م)</div></div>
+</div>
+<div class="grid c2 mt">
+  <div class="card">
+    <h2>أرصدة الحسابات المالية</h2>
+    <table>
+      <tr><th>الحساب</th><th>النوع</th><th>الرصيد</th></tr>
+      <% balances.forEach(b => { %>
+      <tr><td><%= b.name %></td><td><span class="badge teal"><%= L.accountType[b.type] %></span></td>
+      <td><b><%= Number(b.balance).toLocaleString('ar-EG') %> ج.م</b></td></tr>
+      <% }) %>
+    </table>
+    <a class="btn ghost sm mt" href="/accounting/transfers">تحويل بين الحسابات</a>
+  </div>
+  <div class="card">
+    <h2>التحصيل حسب قناة الدفع</h2>
+    <table>
+      <tr><th>القناة</th><th>الإجمالي</th></tr>
+      <% byChannel.forEach(c => { %><tr><td><%= L.paymentMethod[c.method] %></td><td><%= Number(c.total).toLocaleString('ar-EG') %> ج.م</td></tr><% }) %>
+      <% if (!byChannel.length) { %><tr><td colspan="2" class="muted">لا توجد تحصيلات بعد.</td></tr><% } %>
+    </table>
+    <h2 class="mt">إقفال الخزينة اليومي</h2>
+    <% if (closingToday) { %>
+      <div class="alert ok">تم إقفال اليوم بواسطة الإدارة في <%= new Date(closingToday.created_at).toLocaleString('ar-EG') %>.</div>
+    <% } else if (canClose) { %>
+      <form method="post" action="/accounting/closings">
+        <input type="hidden" name="_csrf" value="<%= csrf %>">
+        <label>ملاحظات المطابقة</label><input name="notes" placeholder="مطابقة الأرصدة الفعلية مع النظام">
+        <button class="btn orange mt">إقفال اليوم الآن</button>
+      </form>
+    <% } else { %><p class="muted">لم يتم إقفال اليوم بعد.</p><% } %>
+    <% if (closings.length) { %>
+    <table class="mt"><tr><th>التاريخ</th><th>أقفلها</th><th>ملاحظات</th></tr>
+      <% closings.forEach(c => { %><tr><td><%= new Date(c.closing_date).toLocaleDateString('ar-EG') %></td><td><%= c.closed_by_name || '—' %></td><td class="muted"><%= c.notes || '—' %></td></tr><% }) %>
+    </table>
+    <% } %>
+  </div>
+</div>
+<%- include('../partials/bottom') %>

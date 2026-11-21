@@ -1,0 +1,32 @@
+<%- include('../partials/top', {title, nav:'reception'}) %>
+<div class="grid c2">
+  <div class="card">
+    <h2>الطالب: <%= student.name %> (<span dir="ltr"><%= student.phone %></span>)</h2>
+    <table>
+      <tr><th>الكورس</th><th>المجموعة</th><th>المواعيد</th><th>المدرب</th><th>حضور</th><th>غياب</th><th>الحالة</th></tr>
+      <% enrollments.forEach(e => { %>
+      <tr>
+        <td><%= e.course_name %></td><td><%= e.group_name || '—' %></td>
+        <td class="muted"><%= e.days_of_week || '—' %> <%= e.time_from ? String(e.time_from).slice(0,5) : '' %></td>
+        <td><%= e.trainer_name || '—' %></td>
+        <td><span class="badge green"><%= e.attended %></span></td>
+        <td><span class="badge <%= e.absent>0?'red':'gray' %>"><%= e.absent %></span></td>
+        <td><span class="badge <%= e.status==='active'?'teal':e.status==='completed'?'green':'red' %>"><%= ({active:'نشط',completed:'مكتمل',cancelled:'ملغي'})[e.status] %></span></td>
+      </tr>
+      <% }) %>
+    </table>
+  </div>
+  <div class="card">
+    <h2>الحالة المالية (عرض تشغيلي فقط)</h2>
+    <table>
+      <tr><th>حجز #</th><th>الإجمالي</th><th>المدفوع</th><th>المتبقي</th></tr>
+      <% finances.forEach(f => { const rem = parseFloat(f.total_price)-parseFloat(f.paid); %>
+      <tr><td>#<%= f.id %></td><td><%= Number(f.total_price).toLocaleString('ar-EG') %></td><td><%= Number(f.paid).toLocaleString('ar-EG') %></td>
+      <td><% if (rem>0) { %><span class="badge red"><%= rem.toLocaleString('ar-EG') %></span><% } else { %><span class="badge green">مسدد</span><% } %></td></tr>
+      <% }) %>
+      <% if (!finances.length) { %><tr><td colspan="4" class="muted">لا توجد حجوزات نشطة.</td></tr><% } %>
+    </table>
+    <p class="muted">الاستقبال لا يستطيع تعديل الأسعار أو المدفوعات؛ للتحصيل توجه لقسم الحسابات.</p>
+  </div>
+</div>
+<%- include('../partials/bottom') %>

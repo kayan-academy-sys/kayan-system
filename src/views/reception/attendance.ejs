@@ -1,0 +1,23 @@
+<%- include('../partials/top', {title, nav:'reception'}) %>
+<div class="card">
+  <h2>تسجيل حضور محاضرة <%= s.group_name %> — <%= s.course_name %> — <%= new Date(s.session_date).toLocaleDateString('ar-EG') %></h2>
+  <% if (s.status==='postponed') { %><div class="alert warn">هذه المحاضرة مؤجلة من موعدها الأصلي (<%= s.original_date ? new Date(s.original_date).toLocaleDateString('ar-EG') : '' %>). السبب: <%= s.postpone_reason %></div><% } %>
+  <form method="post">
+    <input type="hidden" name="_csrf" value="<%= csrf %>">
+    <table>
+      <tr><th>الطالب</th><th>الهاتف</th><th>حاضر</th><th>غائب</th><th>متأخر</th><th>بعذر</th><th>ملاحظات</th></tr>
+      <% students.forEach(st => { %>
+      <tr>
+        <td><%= st.name %></td><td dir="ltr"><%= st.phone %></td>
+        <% ['present','absent','late','excused'].forEach(v => { %>
+        <td><input type="radio" name="att_<%= st.enrollment_id %>" value="<%= v %>" style="width:auto" <%= st.att && st.att.status===v ? 'checked' : '' %> <%= canRecord ? '' : 'disabled' %>></td>
+        <% }) %>
+        <td><input name="notes_<%= st.enrollment_id %>" value="<%= st.att && st.att.notes ? st.att.notes : '' %>" <%= canRecord ? '' : 'disabled' %>></td>
+      </tr>
+      <% }) %>
+      <% if (!students.length) { %><tr><td colspan="7" class="muted">لا يوجد طلاب مسجلون في هذه المجموعة.</td></tr><% } %>
+    </table>
+    <% if (canRecord && students.length) { %><button class="btn mt">حفظ الحضور</button><% } %>
+  </form>
+</div>
+<%- include('../partials/bottom') %>

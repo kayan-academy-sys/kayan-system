@@ -1,0 +1,52 @@
+<%- include('../partials/top', {title, nav:'reception'}) %>
+<div class="card">
+  <div class="flex between" style="margin-bottom:10px">
+    <h2 style="border:none;margin:0;padding:0">محاضرات اليوم</h2>
+    <a class="btn ghost sm" href="/reception/students">🔎 بحث عن طالب</a>
+  </div>
+  <table>
+    <tr><th>الموعد</th><th>المجموعة</th><th>الكورس</th><th>المدرب</th><th>الطلاب</th><th>الحالة</th><th>الحضور</th><th></th></tr>
+    <% todaySessions.forEach(s => { %>
+    <tr>
+      <td class="muted"><%= s.start_time ? String(s.start_time).slice(0,5) : '' %> - <%= s.end_time ? String(s.end_time).slice(0,5) : '' %></td>
+      <td><%= s.group_name %></td><td><%= s.course_name %></td><td><%= s.trainer_name || '—' %></td>
+      <td><%= s.students %></td>
+      <td><span class="badge <%= s.status==='done'?'green':s.status==='postponed'?'orange':'teal' %>"><%= L.sessionStatus[s.status] %></span></td>
+      <td><%= s.marked %>/<%= s.students %></td>
+      <td><a class="btn sm" href="/reception/sessions/<%= s.id %>/attendance">تسجيل الحضور</a></td>
+    </tr>
+    <% }) %>
+    <% if (!todaySessions.length) { %><tr><td colspan="8" class="muted">لا توجد محاضرات اليوم.</td></tr><% } %>
+  </table>
+</div>
+<div class="grid c2">
+  <div class="card">
+    <h2>محاضرات الأيام القادمة</h2>
+    <table>
+      <tr><th>التاريخ</th><th>الموعد</th><th>المجموعة</th><th>الكورس</th></tr>
+      <% upcoming.forEach(s => { %><tr><td><%= new Date(s.session_date).toLocaleDateString('ar-EG') %></td><td class="muted"><%= s.start_time ? String(s.start_time).slice(0,5) : '' %></td><td><%= s.group_name %></td><td><%= s.course_name %></td></tr><% }) %>
+      <% if (!upcoming.length) { %><tr><td colspan="4" class="muted">لا توجد محاضرات قريبة.</td></tr><% } %>
+    </table>
+    <h2 class="mt">مجموعات تبدأ خلال أسبوع</h2>
+    <table>
+      <tr><th>المجموعة</th><th>تاريخ البداية</th></tr>
+      <% startingGroups.forEach(g => { %><tr><td><%= g.name %></td><td><%= new Date(g.start_date).toLocaleDateString('ar-EG') %></td></tr><% }) %>
+      <% if (!startingGroups.length) { %><tr><td colspan="2" class="muted">لا توجد مجموعات تبدأ قريبًا.</td></tr><% } %>
+    </table>
+  </div>
+  <div class="card">
+    <h2>تنبيهات الغياب (آخر أسبوع)</h2>
+    <table>
+      <tr><th>الطالب</th><th>الهاتف</th><th>المجموعة</th><th>تاريخ المحاضرة</th></tr>
+      <% absentLast.forEach(a => { %><tr><td><%= a.student_name %></td><td dir="ltr"><%= a.phone %></td><td><%= a.group_name %></td><td class="muted"><%= new Date(a.session_date).toLocaleDateString('ar-EG') %></td></tr><% }) %>
+      <% if (!absentLast.length) { %><tr><td colspan="4" class="muted">لا توجد غيابات مسجلة مؤخرًا.</td></tr><% } %>
+    </table>
+    <h2 class="mt">طلاب لديهم مبالغ مستحقة</h2>
+    <table>
+      <tr><th>العميل</th><th>الهاتف</th><th>قسط مستحق</th><th>تاريخ الاستحقاق</th></tr>
+      <% dueAmounts.forEach(d => { %><tr><td><%= d.customer_name %></td><td dir="ltr"><%= d.phone %></td><td><span class="badge red"><%= Number(d.amount).toLocaleString('ar-EG') %> ج.م</span></td><td class="muted"><%= new Date(d.due_date).toLocaleDateString('ar-EG') %></td></tr><% }) %>
+      <% if (!dueAmounts.length) { %><tr><td colspan="4" class="muted">لا توجد مبالغ مستحقة اليوم.</td></tr><% } %>
+    </table>
+  </div>
+</div>
+<%- include('../partials/bottom') %>
