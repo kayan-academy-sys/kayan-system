@@ -1,0 +1,19 @@
+<%- include('partials/top', {title, nav:'assistant'}) %>
+<div class="card" style="max-width:820px">
+  <h2>مساعد كيان 🤖</h2>
+  <p class="muted">اسأل عن أي شيء يخص النظام: أقساط، محاضرات، مجموعات، تحصيل، عملاء، أو طريقة تنفيذ إجراء.</p>
+  <div class="chat-box mt" id="chatBox">
+    <% history.forEach(m => { %>
+      <div class="chat-msg me"><%= m.q %></div>
+      <div class="chat-msg bot"><%= m.a %></div>
+    <% }) %>
+    <% if (!history.length) { %><div class="chat-msg bot">أهلًا <%= user.name %>! اسألني مثلًا: «الأقساط المتأخرة» أو «محاضرات اليوم» أو «كيف أعمل حجز تقسيط؟»</div><% } %>
+  </div>
+  <form method="post" action="/assistant" class="flex mt">
+    <input type="hidden" name="_csrf" value="<%= csrf %>">
+    <input name="question" required placeholder="اكتب سؤالك هنا..." style="flex:1" autofocus>
+    <button class="btn orange">إرسال</button>
+  </form>
+</div>
+<script>document.getElementById('chatBox').scrollTop = 1e9;</script>
+<%- include('partials/bottom') %>

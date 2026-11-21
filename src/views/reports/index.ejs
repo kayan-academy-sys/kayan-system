@@ -1,0 +1,14 @@
+<%- include('../partials/top', {title, nav:'reports'}) %>
+<div class="grid c2">
+  <% if (canSales) { %>
+  <div class="card"><h2>تقرير المبيعات والعملاء</h2>
+    <p class="muted">العملاء المحتملون والحجوزات ومعدلات التحويل، بالتصفية حسب الفترة والمصدر والحالة والموظف، مع تصدير CSV.</p>
+    <a class="btn mt" href="/reports/sales">فتح تقرير المبيعات</a></div>
+  <% } %>
+  <% if (canFinance) { %>
+  <div class="card"><h2>التقرير المالي</h2>
+    <p class="muted">الإيرادات والمصروفات وصافي الحركة وأرصدة الحسابات والأقساط المتأخرة، مع تصدير CSV.</p>
+    <a class="btn mt" href="/reports/finance">فتح التقرير المالي</a></div>
+  <% } %>
+</div>
+<%- include('../partials/bottom') %>

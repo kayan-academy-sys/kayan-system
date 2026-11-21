@@ -1,0 +1,19 @@
+# نشر على Render (خطة مجانية): New > Blueprint > اربط هذا المستودع
+services:
+  - type: web
+    name: kayan-system
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: node src/server.js
+    envVars:
+      - key: DATABASE_URL
+        sync: false   # رابط Neon Postgres - يُضبط من لوحة Render
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: RUN_CRON
+        value: "true"
+      - key: CRON_SECRET
+        generateValue: true
+      - key: NODE_ENV
+        value: production

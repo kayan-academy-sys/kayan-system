@@ -1,0 +1,34 @@
+<%- include('../partials/top', {title, nav:'reports'}) %>
+<div class="card">
+  <form method="get" class="form-row" style="margin-bottom:12px">
+    <div><label>من</label><input type="date" name="from" value="<%= query.from || '' %>"></div>
+    <div><label>إلى</label><input type="date" name="to" value="<%= query.to || '' %>"></div>
+    <div><label>الحالة</label><select name="status"><option value="">الكل</option>
+      <% Object.entries(L.leadStatus).forEach(([k,v]) => { %><option value="<%= k %>" <%= query.status===k?'selected':'' %>><%= v %></option><% }) %></select></div>
+    <div><label>المصدر</label><select name="source"><option value="">الكل</option>
+      <% Object.entries(L.leadSource).forEach(([k,v]) => { %><option value="<%= k %>" <%= query.source===k?'selected':'' %>><%= v %></option><% }) %></select></div>
+    <div><label>الموظف</label><select name="user_id"><option value="">الكل</option>
+      <% salesUsers.forEach(u => { %><option value="<%= u.id %>" <%= String(query.user_id||'')===String(u.id)?'selected':'' %>><%= u.name %></option><% }) %></select></div>
+    <div><label>&nbsp;</label><button class="btn ghost">تطبيق</button></div>
+    <% if (canExport) { %><div><label>&nbsp;</label><button class="btn orange" name="format" value="csv">تصدير CSV</button></div><% } %>
+  </form>
+  <div class="grid c4" style="margin-bottom:14px">
+    <div class="stat"><div class="num"><%= stats.total %></div><div class="lbl">إجمالي الفرص</div></div>
+    <div class="stat"><div class="num"><%= stats.booked %></div><div class="lbl">حجوزات (<%= stats.total > 0 ? Math.round(stats.booked*100/stats.total) : 0 %>%)</div></div>
+    <div class="stat orange"><div class="num"><%= stats.active %></div><div class="lbl">نشطة</div></div>
+    <div class="stat"><div class="num"><%= stats.lost %></div><div class="lbl">مفقودة</div></div>
+  </div>
+  <div class="flex" style="margin-bottom:12px">
+    <% bySource.forEach(s => { %><span class="badge teal"><%= L.leadSource[s.source] %>: <%= s.n %></span><% }) %>
+  </div>
+  <table>
+    <tr><th>#</th><th>العميل</th><th>الهاتف</th><th>الكورس</th><th>المصدر</th><th>الحالة</th><th>الموظف</th><th>التاريخ</th></tr>
+    <% rows.forEach(l => { %>
+    <tr><td><%= l.id %></td><td><%= l.customer_name %></td><td dir="ltr"><%= l.phone %></td><td><%= l.course_name || '—' %></td>
+    <td><%= L.leadSource[l.source] %></td><td><span class="badge teal"><%= L.leadStatus[l.status] %></span></td>
+    <td><%= l.assigned_name || '—' %></td><td class="muted"><%= new Date(l.created_at).toLocaleDateString('ar-EG') %></td></tr>
+    <% }) %>
+    <% if (!rows.length) { %><tr><td colspan="8" class="muted">لا توجد بيانات مطابقة.</td></tr><% } %>
+  </table>
+</div>
+<%- include('../partials/bottom') %>
