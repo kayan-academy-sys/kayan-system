@@ -1,0 +1,21 @@
+<%- include('../partials/top', {title, nav:'settings'}) %>
+<% if (saved) { %><div class="alert ok">تم حفظ الإعدادات.</div><% } %>
+<%
+  const get = (k, d) => { const s = settings.find(x => x.key===k); return s ? s.value : d; };
+%>
+<div class="card">
+  <h2>إعدادات النظام</h2>
+  <form method="post" action="/admin/settings">
+    <input type="hidden" name="_csrf" value="<%= csrf %>">
+    <div class="form-row">
+      <div><label>مدة تحويل العميل تلقائيًا (أيام)</label><input type="number" name="lead_reassign_days" min="1" max="365" value="<%= get('lead_reassign_days', 90) %>"></div>
+      <div><label>حد «قاربت على الاكتمال» (أماكن متبقية)</label><input type="number" name="nearly_full_threshold" min="1" value="<%= get('nearly_full_threshold', 3) %>"></div>
+      <div><label>هاتف الأكاديمية</label><input name="academy_phone" value="<%= get('academy_phone','01062346652') %>" dir="ltr"></div>
+    </div>
+    <label style="margin-top:14px"><input type="checkbox" name="lead_distribution_enabled" style="width:auto" <%= get('lead_distribution_enabled', true) ? 'checked' : '' %>> تفعيل التوزيع الآلي للعملاء الجدد</label>
+    <label>حالات مستثناة من التحويل التلقائي (مفصولة بفاصلة)</label>
+    <input name="reassign_exempt_statuses" value="<%= (get('reassign_exempt_statuses', ['closed_lost'])||[]).join(',') %>" dir="ltr">
+    <button class="btn mt">حفظ</button>
+  </form>
+</div>
+<%- include('../partials/bottom') %>

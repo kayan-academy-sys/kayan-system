@@ -1,0 +1,26 @@
+<%- include('../partials/top', {title, nav:'orders'}) %>
+<div class="card">
+  <div class="flex between" style="margin-bottom:12px"><h2 style="border:none;margin:0;padding:0">الحجوزات</h2>
+  <% if (can('orders.create')) { %><a class="btn orange" href="/orders/new">+ حجز جديد</a><% } %></div>
+  <table>
+    <tr><th>#</th><th>العميل</th><th>الهاتف</th><th>النوع</th><th>الكورس/الباقة</th><th>الإجمالي</th><th>المدفوع</th><th>المتبقي</th><th>الدفع</th><th>الحالة</th><th>المبيعات</th><th>التاريخ</th><th></th></tr>
+    <% rows.forEach(o => { const rem = parseFloat(o.total_price) - parseFloat(o.paid); %>
+    <tr>
+      <td><%= o.id %></td>
+      <td><%= o.customer_name %></td><td dir="ltr"><%= o.customer_phone %></td>
+      <td><span class="badge <%= o.kind==='package'?'orange':'teal' %>"><%= o.kind==='package'?'باقة':'كورس' %></span></td>
+      <td><%= o.kind==='package' ? o.package_name : o.course_name %></td>
+      <td><%= Number(o.total_price).toLocaleString('ar-EG') %></td>
+      <td><%= Number(o.paid).toLocaleString('ar-EG') %></td>
+      <td><% if (rem > 0) { %><span class="badge red"><%= rem.toLocaleString('ar-EG') %></span><% } else { %><span class="badge green">مسدد</span><% } %></td>
+      <td><%= o.payment_type==='installments'?'تقسيط':'نقدي' %></td>
+      <td><span class="badge <%= o.status==='approved'?'green':o.status==='cancelled'?'red':'orange' %>"><%= L.orderStatus[o.status] %></span></td>
+      <td class="muted"><%= o.sales_name || '—' %></td>
+      <td class="muted"><%= new Date(o.created_at).toLocaleDateString('ar-EG') %></td>
+      <td><a class="btn ghost sm" href="/orders/<%= o.id %>">فتح</a></td>
+    </tr>
+    <% }) %>
+    <% if (!rows.length) { %><tr><td colspan="13" class="muted">لا توجد حجوزات.</td></tr><% } %>
+  </table>
+</div>
+<%- include('../partials/bottom') %>

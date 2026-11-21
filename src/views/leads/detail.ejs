@@ -1,0 +1,83 @@
+<%- include('../partials/top', {title, nav:'leads'}) %>
+<% if (notice) { %><div class="alert warn"><%= notice %></div><% } %>
+<div class="grid c2">
+  <div class="card">
+    <h2>بيانات الفرصة</h2>
+    <table>
+      <tr><th>العميل</th><td><a href="/customers/<%= lead.customer_id %>"><%= lead.customer_name %></a></td></tr>
+      <tr><th>الهاتف</th><td dir="ltr"><%= lead.customer_phone %></td></tr>
+      <tr><th>الكورس</th><td><%= lead.course_name || 'غير محدد' %></td></tr>
+      <tr><th>المصدر</th><td><%= L.leadSource[lead.source] %></td></tr>
+      <tr><th>الحالة</th><td><span class="badge <%= lead.status.startsWith('booked')?'green':lead.status==='closed_lost'?'red':'teal' %>"><%= L.leadStatus[lead.status] %></span></td></tr>
+      <% if (lead.interest_score) { %><tr><th>درجة الاهتمام</th><td><%= lead.interest_score %>/10</td></tr><% } %>
+      <% if (lead.lost_reason) { %><tr><th>سبب الخسارة</th><td><%= lead.lost_reason %></td></tr><% } %>
+      <tr><th>المسند إليه</th><td><%= lead.assigned_name || 'غير مسند' %></td></tr>
+      <tr><th>تاريخ الإسناد</th><td class="muted"><%= lead.assigned_at ? new Date(lead.assigned_at).toLocaleString('ar-EG') : '—' %></td></tr>
+      <tr><th>المتابعة القادمة</th><td class="muted"><%= lead.next_follow_up_at ? new Date(lead.next_follow_up_at).toLocaleString('ar-EG') : '—' %></td></tr>
+    </table>
+    <% if (can('leads.assign')) { %>
+    <form method="post" action="/leads/<%= lead.id %>/assign" class="form-row mt">
+      <input type="hidden" name="_csrf" value="<%= csrf %>">
+      <div><label>إعادة إسناد إلى</label><select name="to_user_id"><% salesUsers.forEach(u => { %><option value="<%= u.id %>"><%= u.name %></option><% }) %></select></div>
+      <div><label>السبب</label><input name="reason" placeholder="اختياري"></div>
+      <div><label>&nbsp;</label><button class="btn ghost">إسناد</button></div>
+    </form>
+    <% } %>
+    <% if (['interested','need_follow_up','new','no_answer'].includes(lead.status) && can('orders.create')) { %>
+    <div class="mt"><a class="btn orange" href="/orders/new?lead_id=<%= lead.id %>">إنشاء حجز لهذا العميل</a></div>
+    <% } %>
+  </div>
+  <div class="card">
+    <h2>تسجيل نشاط جديد</h2>
+    <form method="post" action="/leads/<%= lead.id %>/activity">
+      <input type="hidden" name="_csrf" value="<%= csrf %>">
+      <div class="form-row">
+        <div><label>النوع</label><select name="type"><option value="call">مكالمة</option><option value="note">ملاحظة</option><option value="follow_up">متابعة</option></select></div>
+        <div><label>النتيجة</label><input name="result" placeholder="مثال: رد وطلب معاودة الاتصال"></div>
+      </div>
+      <div class="form-row">
+        <div><label>تغيير الحالة إلى</label><select name="status"><option value="">بدون تغيير</option>
+          <option value="no_answer">لا يرد</option><option value="interested">مهتم</option>
+          <option value="need_follow_up">يحتاج متابعة</option><option value="closed_lost">خسرنا العميل</option></select></div>
+        <div><label>درجة الاهتمام (1-10، اختياري)</label><input type="number" name="interest_score" min="1" max="10"></div>
+        <div><label>سبب الخسارة (عند خسارة العميل)</label><input name="lost_reason"></div>
+      </div>
+      <label>المتابعة القادمة</label><input type="datetime-local" name="next_follow_up_at">
+      <label>ملاحظات</label><textarea name="notes" rows="2"></textarea>
+      <button class="btn mt">حفظ النشاط</button>
+    </form>
+  </div>
+</div>
+<div class="grid c2">
+  <div class="card">
+    <h2>سجل الاتصالات والأنشطة</h2>
+    <table>
+      <tr><th>الوقت</th><th>الموظف</th><th>النوع</th><th>النتيجة/الحالة</th><th>ملاحظات</th></tr>
+      <% activities.forEach(a => { %>
+      <tr>
+        <td class="muted" style="white-space:nowrap"><%= new Date(a.created_at).toLocaleString('ar-EG') %></td>
+        <td><%= a.user_name %></td>
+        <td><span class="badge teal"><%= a.type==='status_change' ? 'تغيير حالة' : L.activityType[a.type] %></span></td>
+        <td><%= a.type==='status_change' ? (L.leadStatus[a.result] || a.result) : (a.result || '—') %></td>
+        <td class="muted"><%= a.notes || '—' %></td>
+      </tr>
+      <% }) %>
+      <% if (!activities.length) { %><tr><td colspan="5" class="muted">لا توجد أنشطة بعد.</td></tr><% } %>
+    </table>
+  </div>
+  <div class="card">
+    <h2>سجل الإسناد</h2>
+    <table>
+      <tr><th>الوقت</th><th>من</th><th>إلى</th><th>بواسطة</th><th>السبب</th></tr>
+      <% assignments.forEach(a => { %>
+      <tr>
+        <td class="muted" style="white-space:nowrap"><%= new Date(a.created_at).toLocaleString('ar-EG') %></td>
+        <td><%= a.from_name || '—' %></td><td><%= a.to_name || '—' %></td>
+        <td><%= a.by_name || 'النظام (تلقائي)' %></td><td class="muted"><%= a.reason || '—' %></td>
+      </tr>
+      <% }) %>
+      <% if (!assignments.length) { %><tr><td colspan="5" class="muted">لا يوجد سجل إسناد.</td></tr><% } %>
+    </table>
+  </div>
+</div>
+<%- include('../partials/bottom') %>

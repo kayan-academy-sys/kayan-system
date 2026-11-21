@@ -1,0 +1,23 @@
+<%- include('partials/top', {title, nav:'automation'}) %>
+<% if (ran) { %><div class="alert ok">تم تشغيل جميع المهام المجدولة. راجع النتائج أدناه.</div><% } %>
+<div class="card">
+  <div class="flex between">
+    <h2 style="border:none;margin:0;padding:0">سجل تشغيل المهام</h2>
+    <form method="post" action="/automation/run"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn orange">تشغيل كل المهام الآن</button></form>
+  </div>
+  <p class="muted mt">المهام: تذكير المتابعات، تحويل العملاء بعد انتهاء مدة الإسناد، تنبيهات الأقساط المستحقة والمتأخرة، متابعة اكتمال المجموعات. تعمل تلقائيًا كل 15 دقيقة على الخادم الدائم، أو عبر نقطة cron الخارجية على الاستضافة السحابية.</p>
+  <table class="mt">
+    <tr><th>البداية</th><th>المهمة</th><th>الحالة</th><th>التفاصيل</th><th>الانتهاء</th></tr>
+    <% rows.forEach(r => { %>
+    <tr>
+      <td class="muted" style="white-space:nowrap"><%= new Date(r.started_at).toLocaleString('ar-EG') %></td>
+      <td><span class="badge teal"><%= r.job %></span></td>
+      <td><span class="badge <%= r.status==='success'?'green':r.status==='error'?'red':'gray' %>"><%= ({success:'نجاح',error:'خطأ',skipped:'تم تخطيها'})[r.status] %></span></td>
+      <td class="muted"><%= r.details ? JSON.stringify(r.details) : '—' %></td>
+      <td class="muted" style="white-space:nowrap"><%= r.finished_at ? new Date(r.finished_at).toLocaleString('ar-EG') : '—' %></td>
+    </tr>
+    <% }) %>
+    <% if (!rows.length) { %><tr><td colspan="5" class="muted">لم تُنفذ مهام بعد.</td></tr><% } %>
+  </table>
+</div>
+<%- include('partials/bottom') %>

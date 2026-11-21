@@ -1,0 +1,36 @@
+<%- include('../partials/top', {title, nav:'packages'}) %>
+<% if (can('packages.manage')) { %>
+<div class="card">
+  <h2>إنشاء باقة</h2>
+  <form method="post" action="/packages">
+    <input type="hidden" name="_csrf" value="<%= csrf %>">
+    <div class="form-row">
+      <div><label>اسم الباقة *</label><input name="name" required></div>
+      <div><label>السعر الإجمالي (ج.م) *</label><input type="number" step="0.01" min="0" name="price" required></div>
+      <div><label>فترة الصلاحية</label><input name="validity" placeholder="مثال: ٣ أشهر"></div>
+    </div>
+    <label>الكورسات المشمولة *</label>
+    <div class="flex"><% courses.forEach(c => { %><label style="font-weight:400"><input type="checkbox" name="course_ids" value="<%= c.id %>" style="width:auto"> <%= c.name %></label><% }) %></div>
+    <label>الشروط</label><textarea name="terms" rows="2"></textarea>
+    <label>الوصف</label><textarea name="description" rows="2"></textarea>
+    <button class="btn mt">حفظ الباقة</button>
+  </form>
+</div>
+<% } %>
+<div class="card">
+  <h2>الباقات المعتمدة</h2>
+  <table>
+    <tr><th>الباقة</th><th>الكورسات</th><th>السعر</th><th>الصلاحية</th><th>الحالة</th></tr>
+    <% rows.forEach(p => { %>
+    <tr>
+      <td><b><%= p.name %></b><br><span class="muted"><%= p.description || '' %></span></td>
+      <td><%= (p.course_names || []).join(' + ') %></td>
+      <td><%= Number(p.price).toLocaleString('ar-EG') %> ج.م</td>
+      <td class="muted"><%= p.validity || '—' %></td>
+      <td><span class="badge <%= p.status==='active'?'green':'gray' %>"><%= p.status==='active'?'معتمدة':'موقوفة' %></span></td>
+    </tr>
+    <% }) %>
+    <% if (!rows.length) { %><tr><td colspan="5" class="muted">لا توجد باقات بعد.</td></tr><% } %>
+  </table>
+</div>
+<%- include('../partials/bottom') %>

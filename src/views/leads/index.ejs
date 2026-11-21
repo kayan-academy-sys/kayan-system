@@ -1,0 +1,35 @@
+<%- include('../partials/top', {title, nav:'leads'}) %>
+<div class="card">
+  <div class="flex between" style="margin-bottom:12px">
+    <form method="get" class="flex" style="gap:8px;align-items:end">
+      <div><label>بحث</label><input name="q" value="<%= query.q || '' %>" placeholder="اسم أو هاتف"></div>
+      <div><label>الحالة</label><select name="status"><option value="">الكل</option>
+        <% Object.entries(L.leadStatus).forEach(([k,v]) => { %><option value="<%= k %>" <%= query.status===k?'selected':'' %>><%= v %></option><% }) %></select></div>
+      <div><label>المصدر</label><select name="source"><option value="">الكل</option>
+        <% Object.entries(L.leadSource).forEach(([k,v]) => { %><option value="<%= k %>" <%= query.source===k?'selected':'' %>><%= v %></option><% }) %></select></div>
+      <% if (salesUsers.length) { %>
+      <div><label>الموظف</label><select name="assigned"><option value="">الكل</option>
+        <% salesUsers.forEach(u => { %><option value="<%= u.id %>" <%= String(query.assigned||'')===String(u.id)?'selected':'' %>><%= u.name %></option><% }) %></select></div>
+      <% } %>
+      <div><label style="white-space:nowrap"><input type="checkbox" name="followup" value="due" style="width:auto" <%= query.followup==='due'?'checked':'' %>> المتابعات المستحقة فقط</label></div>
+      <button class="btn ghost">تصفية</button>
+    </form>
+    <% if (can('leads.create')) { %><a class="btn orange" href="/leads/new">+ عميل جديد</a><% } %>
+  </div>
+  <table>
+    <tr><th>العميل</th><th>الهاتف</th><th>الكورس</th><th>المصدر</th><th>الحالة</th><th>اهتمام</th><th>المسند إليه</th><th>المتابعة القادمة</th><th></th></tr>
+    <% rows.forEach(l => { %>
+    <tr style="<%= l.followup_due ? 'background:var(--orange-050)' : '' %>">
+      <td><%= l.customer_name %></td><td dir="ltr"><%= l.customer_phone %></td>
+      <td><%= l.course_name || '—' %></td><td><%= L.leadSource[l.source] %></td>
+      <td><span class="badge <%= l.status.startsWith('booked')?'green':l.status==='closed_lost'?'red':l.status==='interested'?'orange':'teal' %>"><%= L.leadStatus[l.status] %></span></td>
+      <td><%= l.interest_score ? l.interest_score + '/10' : '—' %></td>
+      <td><%= l.assigned_name || 'غير مسند' %></td>
+      <td class="muted"><%= l.next_follow_up_at ? new Date(l.next_follow_up_at).toLocaleString('ar-EG') : '—' %><%= l.followup_due ? ' ⚠️' : '' %></td>
+      <td><a class="btn ghost sm" href="/leads/<%= l.id %>">فتح</a></td>
+    </tr>
+    <% }) %>
+    <% if (!rows.length) { %><tr><td colspan="9" class="muted">لا توجد نتائج مطابقة.</td></tr><% } %>
+  </table>
+</div>
+<%- include('../partials/bottom') %>

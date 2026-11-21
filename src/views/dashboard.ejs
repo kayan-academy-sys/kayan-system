@@ -1,0 +1,45 @@
+<%- include('partials/top', {title, nav:'dash', unreadCount: data.unreadCount}) %>
+<div class="grid c4">
+  <% if (data.leads) { %>
+  <div class="stat"><div class="num"><%= data.leads.new_leads %></div><div class="lbl">عملاء جدد</div></div>
+  <div class="stat"><div class="num"><%= data.leads.active_leads %></div><div class="lbl">عملاء نشطون</div></div>
+  <div class="stat orange"><div class="num"><%= data.leads.overdue_followups %></div><div class="lbl">متابعات متأخرة</div></div>
+  <div class="stat"><div class="num"><%= data.leads.bookings_today %></div><div class="lbl">حجوزات اليوم</div></div>
+  <% } %>
+  <% if (data.finance) { %>
+  <div class="stat"><div class="num"><%= Number(data.finance.collected_today).toLocaleString('ar-EG') %></div><div class="lbl">تحصيل اليوم (ج.م)</div></div>
+  <div class="stat"><div class="num"><%= Number(data.finance.collected_total).toLocaleString('ar-EG') %></div><div class="lbl">إجمالي التحصيل (ج.م)</div></div>
+  <% } %>
+  <% if (data.installments) { %>
+  <div class="stat orange"><div class="num"><%= data.installments.overdue %></div><div class="lbl">أقساط متأخرة</div></div>
+  <div class="stat"><div class="num"><%= data.installments.due_today %></div><div class="lbl">أقساط مستحقة اليوم</div></div>
+  <% } %>
+  <% if (data.expenses_month) { %>
+  <div class="stat orange"><div class="num"><%= Number(data.expenses_month.total).toLocaleString('ar-EG') %></div><div class="lbl">مصروفات الشهر (ج.م)</div></div>
+  <% } %>
+  <% if (data.groups) { %>
+  <div class="stat"><div class="num"><%= data.groups.active_groups %></div><div class="lbl">مجموعات نشطة</div></div>
+  <div class="stat orange"><div class="num"><%= data.groups.nearly_full %></div><div class="lbl">قاربت على الاكتمال</div></div>
+  <% } %>
+</div>
+<% if (data.today_sessions && data.today_sessions.length) { %>
+<div class="card mt">
+  <h2>محاضرات اليوم</h2>
+  <table>
+    <tr><th>المجموعة</th><th>الكورس</th><th>المدرب</th><th>الموعد</th><th>الطلاب</th><th>الحالة</th></tr>
+    <% data.today_sessions.forEach(s => { %>
+    <tr>
+      <td><%= s.group_name %></td><td><%= s.course_name %></td><td><%= s.trainer_name || '—' %></td>
+      <td><%= s.start_time ? String(s.start_time).slice(0,5) : '' %> - <%= s.end_time ? String(s.end_time).slice(0,5) : '' %></td>
+      <td><%= s.students %></td>
+      <td><span class="badge <%= s.status==='done'?'green':s.status==='postponed'?'orange':'teal' %>"><%= ({scheduled:'مجدولة',done:'تمت',postponed:'مؤجلة',cancelled:'ملغاة'})[s.status] %></span></td>
+    </tr>
+    <% }) %>
+  </table>
+</div>
+<% } %>
+<div class="card mt">
+  <h2>مرحبًا <%= user.name %> 👋</h2>
+  <p class="muted">هذا نظام إدارة أكاديمية كيان. استخدم القائمة الجانبية للتنقل بين الأقسام حسب صلاحياتك، وجرّب «مساعد كيان» لأي سؤال عن النظام.</p>
+</div>
+<%- include('partials/bottom') %>

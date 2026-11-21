@@ -1,0 +1,95 @@
+<%- include('../partials/top', {title, nav:'users'}) %>
+<% if (inviteLink) { %>
+<div class="alert ok">تم إنشاء الدعوة. انسخ الرابط وأرسله للموظف (واتساب أو أي وسيلة):
+  <div class="copybox"><%= inviteLink %></div>
+</div>
+<% } %>
+<div class="grid c2">
+  <div class="card">
+    <h2>إضافة مستخدم جديد</h2>
+    <% if (canManage) { %>
+    <p class="muted">يُرسل النظام دعوة بالبريد المحدد، والموظف يعيّن كلمة مروره بنفسه من الرابط.</p>
+    <form method="post" action="/admin/users/invite">
+      <input type="hidden" name="_csrf" value="<%= csrf %>">
+      <div class="form-row">
+        <div><label>الاسم</label><input name="name" required></div>
+        <div><label>البريد الإلكتروني</label><input type="email" name="email" required dir="ltr"></div>
+        <div><label>الدور الوظيفي</label>
+          <select name="role"><% assignableRoles.forEach(r => { %><option value="<%= r %>"><%= roles[r] %></option><% }) %></select>
+        </div>
+      </div>
+      <button class="btn mt">إنشاء الدعوة</button>
+    </form>
+    <% } else { %>
+    <p class="muted">بصفتك مشرفًا عامًا يمكنك تقديم طلب إضافة مستخدم، ويحتاج الطلب موافقة مدير النظام.</p>
+    <form method="post" action="/admin/users/request">
+      <input type="hidden" name="_csrf" value="<%= csrf %>">
+      <div class="form-row">
+        <div><label>الاسم</label><input name="name" required></div>
+        <div><label>البريد الإلكتروني</label><input type="email" name="email" required dir="ltr"></div>
+        <div><label>الدور الوظيفي</label>
+          <select name="role"><% assignableRoles.forEach(r => { %><option value="<%= r %>"><%= roles[r] %></option><% }) %></select>
+        </div>
+      </div>
+      <button class="btn orange mt">إرسال الطلب للمدير</button>
+    </form>
+    <% } %>
+  </div>
+  <div class="card">
+    <h2>طلبات إضافة المستخدمين</h2>
+    <table>
+      <tr><th>الاسم</th><th>البريد</th><th>الدور</th><th>مقدم الطلب</th><th>الحالة</th><th></th></tr>
+      <% requests.forEach(r => { %>
+      <tr>
+        <td><%= r.name %></td><td dir="ltr"><%= r.email %></td><td><%= roles[r.role] %></td><td><%= r.requested_by_name %></td>
+        <td><span class="badge <%= r.status==='pending'?'orange':r.status==='approved'?'green':'red' %>"><%= ({pending:'بانتظار الموافقة',approved:'تمت الموافقة',rejected:'مرفوض'})[r.status] %></span></td>
+        <td>
+          <% if (r.status==='pending' && canManage) { %>
+          <form class="inline" method="post" action="/admin/users/requests/<%= r.id %>/approve"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn sm">موافقة</button></form>
+          <form class="inline" method="post" action="/admin/users/requests/<%= r.id %>/reject"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn danger sm">رفض</button></form>
+          <% } %>
+        </td>
+      </tr>
+      <% }) %>
+      <% if (!requests.length) { %><tr><td colspan="6" class="muted">لا توجد طلبات.</td></tr><% } %>
+    </table>
+  </div>
+</div>
+<div class="card">
+  <h2>المستخدمون الحاليون</h2>
+  <table>
+    <tr><th>الاسم</th><th>البريد</th><th>الدور</th><th>الحالة</th><th>آخر دخول</th><th>أضيف بواسطة</th><th></th></tr>
+    <% users.forEach(u => { %>
+    <tr>
+      <td><%= u.name %></td><td dir="ltr"><%= u.email %></td><td><%= roles[u.role] %></td>
+      <td><span class="badge <%= u.active?'green':'red' %>"><%= u.active?'نشط':'معطّل' %></span></td>
+      <td class="muted"><%= u.last_login_at ? new Date(u.last_login_at).toLocaleString('ar-EG') : '—' %></td>
+      <td class="muted"><%= u.invited_by_name || '—' %></td>
+      <td>
+        <% if (canManage && u.role !== 'admin') { %>
+        <form class="inline" method="post" action="/admin/users/<%= u.id %>/toggle" onsubmit="return confirm('تأكيد تغيير حالة المستخدم؟')">
+          <input type="hidden" name="_csrf" value="<%= csrf %>">
+          <button class="btn <%= u.active?'danger':'ghost' %> sm"><%= u.active?'تعطيل':'تفعيل' %></button>
+        </form>
+        <% } %>
+      </td>
+    </tr>
+    <% }) %>
+  </table>
+</div>
+<div class="card">
+  <h2>الدعوات</h2>
+  <table>
+    <tr><th>الاسم</th><th>البريد</th><th>الدور</th><th>الحالة</th><th>أنشأها</th><th>الانتهاء</th></tr>
+    <% invites.forEach(v => { %>
+    <tr>
+      <td><%= v.name %></td><td dir="ltr"><%= v.email %></td><td><%= roles[v.role] %></td>
+      <td><span class="badge <%= v.status==='pending'?'orange':v.status==='accepted'?'green':'gray' %>"><%= ({pending:'بانتظار القبول',accepted:'مقبولة',revoked:'ملغاة'})[v.status] %></span></td>
+      <td class="muted"><%= v.created_by_name || '—' %></td>
+      <td class="muted"><%= new Date(v.expires_at).toLocaleDateString('ar-EG') %></td>
+    </tr>
+    <% }) %>
+    <% if (!invites.length) { %><tr><td colspan="6" class="muted">لا توجد دعوات بعد.</td></tr><% } %>
+  </table>
+</div>
+<%- include('../partials/bottom') %>

@@ -1,0 +1,22 @@
+<%- include('../partials/top', {title, nav:'audit'}) %>
+<div class="card">
+  <h2>سجل المراجعة (آخر 500 عملية)</h2>
+  <form method="get" class="form-row" style="margin-bottom:12px">
+    <div><label>نوع الكيان</label><input name="entity" value="<%= '' %>" placeholder="مثال: payment, lead, settings"></div>
+    <div><label>&nbsp;</label><button class="btn ghost">تصفية</button></div>
+  </form>
+  <table>
+    <tr><th>الوقت</th><th>المستخدم</th><th>العملية</th><th>الكيان</th><th>المعرف</th><th>التفاصيل</th></tr>
+    <% rows.forEach(r => { %>
+    <tr>
+      <td class="muted" style="white-space:nowrap"><%= new Date(r.created_at).toLocaleString('ar-EG') %></td>
+      <td><%= r.user_name || r.uname || 'النظام' %></td>
+      <td><span class="badge teal"><%= r.action %></span></td>
+      <td><%= r.entity %></td><td><%= r.entity_id || '—' %></td>
+      <td class="muted" style="max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="<%= r.details ? JSON.stringify(r.details) : '' %>"><%= r.details ? JSON.stringify(r.details) : '—' %></td>
+    </tr>
+    <% }) %>
+    <% if (!rows.length) { %><tr><td colspan="6" class="muted">لا توجد سجلات.</td></tr><% } %>
+  </table>
+</div>
+<%- include('../partials/bottom') %>

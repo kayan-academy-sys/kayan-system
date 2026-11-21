@@ -1,0 +1,20 @@
+<%- include('../partials/top', {title, nav:'leads'}) %>
+<div class="card">
+  <form method="get" class="form-row" style="margin-bottom:12px">
+    <div><label>بحث بالاسم أو رقم الهاتف</label><input name="q" value="<%= q %>" placeholder="مثال: 0101..."></div>
+    <div><label>&nbsp;</label><button class="btn ghost">بحث</button></div>
+  </form>
+  <table>
+    <tr><th>الاسم</th><th>الهاتف</th><th>البريد</th><th>الفرص</th><th>الحجوزات</th><th>أضيف</th><th></th></tr>
+    <% rows.forEach(c => { %>
+    <tr>
+      <td><%= c.name %></td><td dir="ltr"><%= c.phone %></td><td dir="ltr"><%= c.email || '—' %></td>
+      <td><%= c.leads_count %></td><td><%= c.orders_count %></td>
+      <td class="muted"><%= new Date(c.created_at).toLocaleDateString('ar-EG') %></td>
+      <td><a class="btn ghost sm" href="/customers/<%= c.id %>">الملف</a></td>
+    </tr>
+    <% }) %>
+    <% if (!rows.length) { %><tr><td colspan="7" class="muted">لا توجد نتائج.</td></tr><% } %>
+  </table>
+</div>
+<%- include('../partials/bottom') %>

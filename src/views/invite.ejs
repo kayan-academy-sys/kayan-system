@@ -1,0 +1,17 @@
+<%- include('partials/top', {title, user:null}) %>
+<div class="auth-page">
+  <div class="auth-card">
+    <div class="logo"><img src="/static/img/logo.jpg" alt="كيان"><h1>أهلًا بك في نظام كيان</h1>
+    <p class="muted">تمت دعوتك باسم <b><%= invite.name %></b> (<%= invite.email %>)</p></div>
+    <% if (error) { %><div class="alert err"><%= error %></div><% } %>
+    <form method="post">
+      <input type="hidden" name="_csrf" value="<%= csrf %>">
+      <label>كلمة المرور الجديدة (8 أحرف على الأقل)</label>
+      <input type="password" name="password" required minlength="8" dir="ltr">
+      <label>تأكيد كلمة المرور</label>
+      <input type="password" name="password2" required minlength="8" dir="ltr">
+      <button class="btn mt" style="width:100%">تفعيل الحساب والدخول</button>
+    </form>
+  </div>
+</div>
+<%- include('partials/bottom', {user:null}) %>

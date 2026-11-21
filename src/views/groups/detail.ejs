@@ -1,0 +1,101 @@
+<%- include('../partials/top', {title, nav:'groups'}) %>
+<div class="grid c2">
+  <div class="card">
+    <h2>بيانات المجموعة</h2>
+    <table>
+      <tr><th>المجموعة</th><td><%= group.name %></td></tr>
+      <tr><th>الكورس</th><td><%= group.course_name %></td></tr>
+      <tr><th>المدرب</th><td><%= group.trainer_name || '—' %></td></tr>
+      <tr><th>البداية / النهاية</th><td class="muted"><%= group.start_date ? new Date(group.start_date).toLocaleDateString('ar-EG') : '—' %> → <%= group.end_date ? new Date(group.end_date).toLocaleDateString('ar-EG') : '—' %></td></tr>
+      <tr><th>الأيام والمواعيد</th><td class="muted"><%= group.days_of_week || '—' %> | <%= group.time_from ? String(group.time_from).slice(0,5) : '' %> - <%= group.time_to ? String(group.time_to).slice(0,5) : '' %></td></tr>
+      <tr><th>الأماكن</th><td><span class="badge <%= available<=0?'red':available<=3?'orange':'green' %>">محجوز <%= booked %> / <%= group.capacity %> — متاح <%= available %></span></td></tr>
+      <tr><th>الحالة</th><td><span class="badge teal"><%= L.groupStatus[group.status] %></span></td></tr>
+    </table>
+    <% if (canManage) { %>
+    <details class="mt"><summary class="btn ghost sm">تعديل بيانات المجموعة</summary>
+      <form method="post" action="/groups/<%= group.id %>/edit" class="mt">
+        <input type="hidden" name="_csrf" value="<%= csrf %>">
+        <div class="form-row">
+          <div><label>الاسم</label><input name="name" value="<%= group.name %>" required></div>
+          <div><label>السعة</label><input type="number" min="1" name="capacity" value="<%= group.capacity %>"></div>
+          <div><label>الحالة</label><select name="status">
+            <% Object.entries(L.groupStatus).forEach(([k,v]) => { %><option value="<%= k %>" <%= group.status===k?'selected':'' %>><%= v %></option><% }) %></select></div>
+        </div>
+        <div class="form-row">
+          <div><label>البداية</label><input type="date" name="start_date" value="<%= group.start_date ? new Date(group.start_date).toISOString().slice(0,10) : '' %>"></div>
+          <div><label>النهاية</label><input type="date" name="end_date" value="<%= group.end_date ? new Date(group.end_date).toISOString().slice(0,10) : '' %>"></div>
+          <div><label>الأيام</label><input name="days_of_week" value="<%= group.days_of_week || '' %>"></div>
+          <div><label>من</label><input type="time" name="time_from" value="<%= group.time_from ? String(group.time_from).slice(0,5) : '' %>"></div>
+          <div><label>إلى</label><input type="time" name="time_to" value="<%= group.time_to ? String(group.time_to).slice(0,5) : '' %>"></div>
+          <div><label>المدرب (ID)</label><input type="number" name="trainer_id" value="<%= group.trainer_id || '' %>"></div>
+        </div>
+        <button class="btn sm mt">حفظ</button>
+      </form>
+    </details>
+    <% } %>
+  </div>
+  <div class="card">
+    <h2>الطلاب المسجلون (<%= booked %>)</h2>
+    <table>
+      <tr><th>الاسم</th><th>الهاتف</th><th>تاريخ التسجيل</th></tr>
+      <% students.forEach(s => { %>
+      <tr><td><%= s.name %></td><td dir="ltr"><%= s.phone %></td><td class="muted"><%= new Date(s.created_at).toLocaleDateString('ar-EG') %></td></tr>
+      <% }) %>
+      <% if (!students.length) { %><tr><td colspan="3" class="muted">لا يوجد طلاب بعد.</td></tr><% } %>
+    </table>
+  </div>
+</div>
+<div class="card">
+  <div class="flex between" style="margin-bottom:10px"><h2 style="border:none;margin:0;padding:0">جدول المحاضرات</h2>
+  <% if (canManage) { %>
+  <details><summary class="btn sm">+ إضافة محاضرة</summary>
+    <form method="post" action="/groups/<%= group.id %>/sessions" class="form-row mt">
+      <input type="hidden" name="_csrf" value="<%= csrf %>">
+      <div><label>التاريخ *</label><input type="date" name="session_date" required></div>
+      <div><label>من</label><input type="time" name="start_time"></div>
+      <div><label>إلى</label><input type="time" name="end_time"></div>
+      <div><label>الموضوع</label><input name="topic"></div>
+      <div><label>&nbsp;</label><button class="btn">إضافة</button></div>
+    </form>
+  </details>
+  <% } %>
+  </div>
+  <table>
+    <tr><th>التاريخ الحالي</th><th>الموعد</th><th>الموضوع</th><th>الحالة</th><th>الموعد الأصلي</th><th>سبب التأجيل / المنفذ</th><th>الحضور</th><th></th></tr>
+    <% sessions.forEach(s => { %>
+    <tr>
+      <td><%= new Date(s.session_date).toLocaleDateString('ar-EG') %></td>
+      <td class="muted"><%= s.start_time ? String(s.start_time).slice(0,5) : '' %> - <%= s.end_time ? String(s.end_time).slice(0,5) : '' %></td>
+      <td><%= s.topic || '—' %></td>
+      <td><span class="badge <%= s.status==='done'?'green':s.status==='postponed'?'orange':s.status==='cancelled'?'red':'teal' %>"><%= L.sessionStatus[s.status] %></span></td>
+      <td class="muted"><%= s.original_date ? new Date(s.original_date).toLocaleDateString('ar-EG') + ' ' + (s.original_start_time ? String(s.original_start_time).slice(0,5) : '') : '—' %></td>
+      <td class="muted"><%= s.postpone_reason ? s.postpone_reason + ' / ' + (s.postponed_by_name || '') : '—' %></td>
+      <td><%= s.present_count %> حاضر</td>
+      <td>
+        <% if (canManage && s.status !== 'done' && s.status !== 'cancelled') { %>
+        <details><summary class="btn ghost sm">إجراءات</summary>
+          <form method="post" action="/sessions/<%= s.id %>/postpone" class="mt">
+            <input type="hidden" name="_csrf" value="<%= csrf %>">
+            <div class="form-row">
+              <div><label>التاريخ الجديد *</label><input type="date" name="new_date" required></div>
+              <div><label>من</label><input type="time" name="new_start_time"></div>
+              <div><label>إلى</label><input type="time" name="new_end_time"></div>
+              <div><label>سبب التأجيل *</label><input name="reason" required></div>
+            </div>
+            <button class="btn orange sm mt">تأجيل</button>
+          </form>
+          <form method="post" action="/sessions/<%= s.id %>/status" class="inline mt">
+            <input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="status" value="done"><button class="btn sm">تمت</button>
+          </form>
+          <form method="post" action="/sessions/<%= s.id %>/status" class="inline mt">
+            <input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="status" value="cancelled"><button class="btn danger sm">إلغاء</button>
+          </form>
+        </details>
+        <% } %>
+      </td>
+    </tr>
+    <% }) %>
+    <% if (!sessions.length) { %><tr><td colspan="8" class="muted">لا توجد محاضرات مجدولة.</td></tr><% } %>
+  </table>
+</div>
+<%- include('../partials/bottom') %>

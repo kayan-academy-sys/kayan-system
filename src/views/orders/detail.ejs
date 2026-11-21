@@ -1,0 +1,89 @@
+<%- include('../partials/top', {title, nav:'orders'}) %>
+<div class="grid c2">
+  <div class="card">
+    <h2>بيانات الحجز #<%= order.id %></h2>
+    <table>
+      <tr><th>العميل</th><td><a href="/customers/<%= order.customer_id %>"><%= order.customer_name %></a> (<span dir="ltr"><%= order.customer_phone %></span>)</td></tr>
+      <tr><th>النوع</th><td><%= order.kind==='package' ? 'باقة: ' + order.package_name : 'كورس: ' + order.course_name %></td></tr>
+      <tr><th>السعر المعتمد</th><td><%= Number(order.total_price).toLocaleString('ar-EG') %> ج.م</td></tr>
+      <tr><th>المدفوع</th><td class="badge green"><%= paid.toLocaleString('ar-EG') %> ج.م</td></tr>
+      <tr><th>المتبقي</th><td><% if (remaining > 0) { %><span class="badge red"><%= remaining.toLocaleString('ar-EG') %> ج.م</span><% } else { %><span class="badge green">مسدد بالكامل</span><% } %></td></tr>
+      <tr><th>طريقة الدفع</th><td><%= order.payment_type==='installments'?'تقسيط':'نقدي' %></td></tr>
+      <tr><th>الحالة</th><td><span class="badge <%= order.status==='approved'?'green':'red' %>"><%= L.orderStatus[order.status] %></span></td></tr>
+      <tr><th>موظف المبيعات</th><td><%= order.sales_name || '—' %></td></tr>
+      <tr><th>التاريخ</th><td class="muted"><%= new Date(order.created_at).toLocaleString('ar-EG') %></td></tr>
+      <% if (order.status==='cancelled') { %><tr><th>الإلغاء</th><td class="muted"><%= order.cancel_reason %> — بواسطة <%= order.cancelled_by_name %> في <%= new Date(order.cancelled_at).toLocaleString('ar-EG') %></td></tr><% } %>
+    </table>
+    <% if (canCancel && order.status==='approved') { %>
+    <details class="mt"><summary class="btn danger sm">إلغاء الحجز</summary>
+      <form method="post" action="/orders/<%= order.id %>/cancel" class="mt" onsubmit="return confirm('تأكيد إلغاء الحجز؟ لا يمكن التراجع.')">
+        <input type="hidden" name="_csrf" value="<%= csrf %>">
+        <label>سبب الإلغاء *</label><input name="reason" required>
+        <button class="btn danger sm mt">تأكيد الإلغاء</button>
+      </form>
+    </details>
+    <p class="muted">المدفوعات النشطة لا تُحذف؛ تُدار بالإلغاء/العكس المالي من قسم الحسابات.</p>
+    <% } %>
+  </div>
+  <div class="card">
+    <h2>التسجيلات بالكورسات</h2>
+    <table>
+      <tr><th>الكورس</th><th>المجموعة</th><th>الحالة</th></tr>
+      <% enrollments.forEach(e => { %>
+      <tr><td><%= e.course_name %></td><td><%= e.group_name || 'لم تُحدد بعد' %></td>
+      <td><span class="badge <%= e.status==='active'?'teal':e.status==='completed'?'green':'red' %>"><%= ({active:'نشط',completed:'مكتمل',cancelled:'ملغي'})[e.status] %></span></td></tr>
+      <% }) %>
+    </table>
+  </div>
+</div>
+<% if (plan) { %>
+<div class="card">
+  <h2>خطة التقسيط: مقدم <%= Number(plan.down_payment).toLocaleString('ar-EG') %> + <%= plan.count %> أقساط</h2>
+  <table>
+    <tr><th>القسط</th><th>القيمة</th><th>الاستحقاق</th><th>الاستحقاق الأصلي</th><th>المدفوع</th><th>الحالة</th></tr>
+    <% installments.forEach(i => { const isLate = i.status==='pending' && new Date(i.due_date) < new Date(); %>
+    <tr style="<%= isLate ? 'background:#fdeae8' : '' %>">
+      <td><%= i.seq %></td><td><%= Number(i.amount).toLocaleString('ar-EG') %></td>
+      <td><%= new Date(i.due_date).toLocaleDateString('ar-EG') %><%= isLate ? ' ⚠️ متأخر' : '' %></td>
+      <td class="muted"><%= new Date(i.original_due_date).toLocaleDateString('ar-EG') %><%= String(i.original_due_date).slice(0,10)!==String(i.due_date).slice(0,10) ? ' (مؤجل: ' + (i.postpone_reason||'') + ')' : '' %></td>
+      <td><%= Number(i.paid).toLocaleString('ar-EG') %></td>
+      <td><span class="badge <%= i.status==='paid'?'green':isLate?'red':'teal' %>"><%= i.status==='paid'?'مسدد':isLate?'متأخر':'قادم' %></span></td>
+    </tr>
+    <% }) %>
+  </table>
+</div>
+<% } %>
+<div class="card">
+  <div class="flex between" style="margin-bottom:10px"><h2 style="border:none;margin:0;padding:0">المدفوعات</h2>
+  <% if (canPay && order.status==='approved' && remaining > 0) { %>
+  <details><summary class="btn sm">+ تسجيل دفعة</summary>
+    <form method="post" action="/accounting/payments" class="form-row mt">
+      <input type="hidden" name="_csrf" value="<%= csrf %>">
+      <input type="hidden" name="order_id" value="<%= order.id %>">
+      <div><label>المبلغ * (المتبقي <%= remaining.toLocaleString('ar-EG') %>)</label><input type="number" step="0.01" min="0.01" max="<%= remaining %>" name="amount" required></div>
+      <div><label>طريقة الدفع</label><select name="method">
+        <% Object.entries(L.paymentMethod).forEach(([k,v]) => { %><option value="<%= k %>"><%= v %></option><% }) %></select></div>
+      <div><label>الحساب المستلم</label><select name="account_id">
+        <% accounts.forEach(a => { %><option value="<%= a.id %>"><%= a.name %></option><% }) %></select></div>
+      <div><label>ملاحظات</label><input name="notes"></div>
+      <div><label>&nbsp;</label><button class="btn">تسجيل الدفعة</button></div>
+    </form>
+  </details>
+  <% } %>
+  </div>
+  <table>
+    <tr><th>التاريخ</th><th>المبلغ</th><th>الطريقة</th><th>الحساب</th><th>سجلها</th><th>الحالة</th></tr>
+    <% payments.forEach(p => { %>
+    <tr style="<%= p.status==='voided' ? 'opacity:.55;text-decoration:line-through' : '' %>">
+      <td class="muted"><%= new Date(p.paid_at).toLocaleString('ar-EG') %></td>
+      <td><%= Number(p.amount).toLocaleString('ar-EG') %></td>
+      <td><%= L.paymentMethod[p.method] %></td><td><%= p.account_name %></td>
+      <td class="muted"><%= p.received_by_name || '—' %></td>
+      <td><span class="badge <%= p.status==='active'?'green':'red' %>"><%= p.status==='active'?'نشطة':'ملغاة' %></span>
+        <% if (p.status==='voided') { %><br><span class="muted"><%= p.void_reason %></span><% } %></td>
+    </tr>
+    <% }) %>
+    <% if (!payments.length) { %><tr><td colspan="6" class="muted">لا توجد دفعات مسجلة.</td></tr><% } %>
+  </table>
+</div>
+<%- include('../partials/bottom') %>

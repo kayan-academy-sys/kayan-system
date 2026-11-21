@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title><%= title %> | نظام كيان</title>
+<link rel="icon" href="/static/img/logo.jpg">
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/css/app.css">
+</head>
+<body>
+<% if (user) { const unread = (locals.unreadCount || 0); %>
+<div class="layout">
+  <aside class="sidebar">
+    <div class="brand"><img src="/static/img/logo.jpg" alt="كيان"><b>نظام كيان</b></div>
+    <nav>
+      <a href="/" class="<%= locals.nav==='dash'?'active':'' %>">🏠 <span>لوحة التحكم</span></a>
+      <% if (can('leads.view.own') || can('leads.view.all')) { %>
+      <div class="section">المبيعات</div>
+      <a href="/leads" class="<%= locals.nav==='leads'?'active':'' %>">👥 <span>العملاء المحتملون</span></a>
+      <% if (can('leads.assign')) { %><a href="/leads/distribution" class="<%= locals.nav==='dist'?'active':'' %>">🔀 <span>توزيع العملاء</span></a><% } %>
+      <% if (can('leads.monitor')) { %><a href="/leads/monitor" class="<%= locals.nav==='monitor'?'active':'' %>">📋 <span>متابعة الفريق</span></a><% } %>
+      <a href="/orders" class="<%= locals.nav==='orders'?'active':'' %>">🧾 <span>الحجوزات</span></a>
+      <% } %>
+      <% if (can('courses.view') || can('courses.manage') || can('groups.view') || can('groups.manage')) { %>
+      <div class="section">الكورسات والمجموعات</div>
+      <a href="/courses" class="<%= locals.nav==='courses'?'active':'' %>">📚 <span>الكورسات</span></a>
+      <a href="/groups" class="<%= locals.nav==='groups'?'active':'' %>">🗓️ <span>المجموعات</span></a>
+      <a href="/packages" class="<%= locals.nav==='packages'?'active':'' %>">🎁 <span>الباقات</span></a>
+      <% if (can('trainers.manage')) { %><a href="/trainers" class="<%= locals.nav==='trainers'?'active':'' %>">🎓 <span>المدربون</span></a><% } %>
+      <% } %>
+      <% if (can('payments.view') || can('payments.create') || can('expenses.view') || can('accounts.view')) { %>
+      <div class="section">الحسابات</div>
+      <a href="/accounting" class="<%= locals.nav==='accounting'?'active':'' %>">💰 <span>الحسابات</span></a>
+      <a href="/accounting/payments" class="<%= locals.nav==='payments'?'active':'' %>">💳 <span>المدفوعات</span></a>
+      <a href="/accounting/installments" class="<%= locals.nav==='installments'?'active':'' %>">📆 <span>الأقساط</span></a>
+      <a href="/accounting/expenses" class="<%= locals.nav==='expenses'?'active':'' %>">🧮 <span>المصروفات</span></a>
+      <% } %>
+      <% if (can('reception.view')) { %>
+      <div class="section">الاستقبال</div>
+      <a href="/reception" class="<%= locals.nav==='reception'?'active':'' %>">🛎️ <span>لوحة الاستقبال</span></a>
+      <% } %>
+      <% if (can('reports.sales') || can('reports.finance')) { %>
+      <div class="section">التقارير</div>
+      <a href="/reports" class="<%= locals.nav==='reports'?'active':'' %>">📊 <span>التقارير</span></a>
+      <% } %>
+      <div class="section">عام</div>
+      <a href="/assistant" class="<%= locals.nav==='assistant'?'active':'' %>">🤖 <span>مساعد كيان</span></a>
+      <% if (can('users.manage') || can('users.request')) { %><a href="/admin/users" class="<%= locals.nav==='users'?'active':'' %>">👤 <span>المستخدمون</span></a><% } %>
+      <% if (can('audit.view')) { %><a href="/admin/audit" class="<%= locals.nav==='audit'?'active':'' %>">🕵️ <span>سجل المراجعة</span></a><% } %>
+      <% if (can('settings.manage')) { %>
+      <a href="/admin/settings" class="<%= locals.nav==='settings'?'active':'' %>">⚙️ <span>الإعدادات</span></a>
+      <a href="/automation" class="<%= locals.nav==='automation'?'active':'' %>">⚡ <span>الأتمتة</span></a>
+      <% } %>
+    </nav>
+    <div class="who">
+      <b><%= user.name %></b>
+      <span class="details" style="color:var(--teal-200)"><%= ({admin:'مدير النظام',general_supervisor:'المشرف العام',sales_manager:'مدير المبيعات',sales_team_leader:'تيم ليدر المبيعات',sales_staff:'موظف مبيعات',accounting_manager:'مدير الحسابات',accounting_staff:'موظف حسابات',reception:'استقبال',course_manager:'مسؤول الكورسات'})[user.role] || user.role %></span>
+      <form method="post" action="/logout" class="mt"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn ghost sm" style="width:100%">تسجيل الخروج</button></form>
+    </div>
+  </aside>
+  <div class="main">
+    <div class="topbar">
+      <h1><%= title %></h1>
+      <a class="bell" href="/notifications">🔔<% if (unread>0) { %><span class="dot"><%= unread %></span><% } %></a>
+    </div>
+    <div class="content">
+<% } %>

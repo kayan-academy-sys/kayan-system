@@ -1,0 +1,23 @@
+<%- include('../partials/top', {title, nav:'leads'}) %>
+<div class="card" style="max-width:640px">
+  <h2>إضافة عميل محتمل</h2>
+  <% if (error) { %><div class="alert err"><%= error %></div><% } %>
+  <div class="alert info">إذا كان رقم الهاتف مسجلًا من قبل، ستُربط الفرصة الجديدة بملف العميل الموجود تلقائيًا بدل إنشاء ملف مكرر.</div>
+  <form method="post" action="/leads">
+    <input type="hidden" name="_csrf" value="<%= csrf %>">
+    <div class="form-row">
+      <div><label>اسم العميل *</label><input name="name" required value="<%= old.name || '' %>"></div>
+      <div><label>رقم الهاتف * (يُحفظ كنص)</label><input name="phone" required dir="ltr" value="<%= old.phone || '' %>" placeholder="010xxxxxxxx"></div>
+    </div>
+    <div class="form-row">
+      <div><label>البريد الإلكتروني</label><input type="email" name="email" dir="ltr" value="<%= old.email || '' %>"></div>
+      <div><label>الكورس المطلوب</label><select name="course_id"><option value="">غير محدد</option>
+        <% courses.forEach(c => { %><option value="<%= c.id %>" <%= String(old.course_id||'')===String(c.id)?'selected':'' %>><%= c.name %></option><% }) %></select></div>
+      <div><label>المصدر *</label><select name="source" required>
+        <% Object.entries(L.leadSource).forEach(([k,v]) => { %><option value="<%= k %>" <%= old.source===k?'selected':'' %>><%= v %></option><% }) %></select></div>
+    </div>
+    <label>ملاحظات</label><textarea name="notes" rows="2"><%= old.notes || '' %></textarea>
+    <button class="btn mt">حفظ وإسناد تلقائي</button>
+  </form>
+</div>
+<%- include('../partials/bottom') %>

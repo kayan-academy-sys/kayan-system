@@ -1,0 +1,18 @@
+<%- include('partials/top', {title, user:null}) %>
+<div class="auth-page">
+  <div class="auth-card">
+    <div class="logo"><img src="/static/img/logo.jpg" alt="كيان"><h1>نظام أكاديمية كيان</h1><p class="muted">تسجيل الدخول للموظفين</p></div>
+    <% if (error) { %><div class="alert err"><%= error %></div><% } %>
+    <form method="post" action="/login">
+      <input type="hidden" name="_csrf" value="<%= csrf %>">
+      <input type="hidden" name="next" value="<%= next %>">
+      <label>البريد الإلكتروني</label>
+      <input type="email" name="email" required autocomplete="username" dir="ltr">
+      <label>كلمة المرور</label>
+      <input type="password" name="password" required autocomplete="current-password" dir="ltr">
+      <button class="btn mt" style="width:100%">دخول</button>
+    </form>
+    <p class="muted mt" style="text-align:center">الدخول للنظام بدعوة من مدير النظام فقط.</p>
+  </div>
+</div>
+<%- include('partials/bottom', {user:null}) %>

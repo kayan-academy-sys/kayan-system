@@ -1,0 +1,18 @@
+<%- include('partials/top', {title, nav:''}) %>
+<div class="card">
+  <div class="flex between"><h2 style="border:none;margin:0;padding:0">الإشعارات</h2>
+  <form method="post" action="/notifications/read-all"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn ghost sm">تعليم الكل كمقروء</button></form></div>
+  <table class="mt">
+    <tr><th>الوقت</th><th>النوع</th><th>العنوان</th><th>التفاصيل</th><th></th></tr>
+    <% rows.forEach(n => { %>
+    <tr style="<%= n.read_at ? 'opacity:.6' : 'font-weight:700' %>">
+      <td class="muted" style="white-space:nowrap"><%= new Date(n.created_at).toLocaleString('ar-EG') %></td>
+      <td><span class="badge teal"><%= n.type %></span></td>
+      <td><%= n.title %></td><td class="muted"><%= n.body || '—' %></td>
+      <td><% if (n.link) { %><a class="btn ghost sm" href="<%= n.link %>">فتح</a><% } %></td>
+    </tr>
+    <% }) %>
+    <% if (!rows.length) { %><tr><td colspan="5" class="muted">لا توجد إشعارات.</td></tr><% } %>
+  </table>
+</div>
+<%- include('partials/bottom') %>

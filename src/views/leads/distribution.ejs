@@ -1,0 +1,40 @@
+<%- include('../partials/top', {title, nav:'dist'}) %>
+<% if (msg) { %><div class="alert ok"><%= msg %></div><% } %>
+<div class="grid c2">
+  <div class="card">
+    <h2>حضور فريق المبيعات اليوم</h2>
+    <p class="muted">حدّد الموظفين الحاضرين قبل التوزيع حتى لا تتراكم العملاء لدى موظف غائب.</p>
+    <form method="post" action="/leads/distribution/presence">
+      <input type="hidden" name="_csrf" value="<%= csrf %>">
+      <table>
+        <tr><th>الموظف</th><th>الدور</th><th>حمل العملاء الحالي</th><th>حاضر اليوم</th></tr>
+        <% allSales.forEach(u => { %>
+        <tr>
+          <td><%= u.name %></td>
+          <td><span class="badge <%= u.role==='sales_team_leader'?'orange':'teal' %>"><%= u.role==='sales_team_leader'?'تيم ليدر':'مبيعات' %></span></td>
+          <td><%= u.load %></td>
+          <td><input type="checkbox" name="present" value="<%= u.id %>" style="width:auto" <%= u.present ? 'checked' : '' %>></td>
+        </tr>
+        <% }) %>
+      </table>
+      <button class="btn mt">حفظ الحضور</button>
+    </form>
+  </div>
+  <div class="card">
+    <h2>العملاء غير المسندين (<%= unassigned.length %>)</h2>
+    <table>
+      <tr><th>العميل</th><th>الهاتف</th><th>الكورس</th><th>الاستقبال</th></tr>
+      <% unassigned.forEach(l => { %>
+      <tr><td><%= l.customer_name %></td><td dir="ltr"><%= l.phone %></td><td><%= l.course_name || '—' %></td>
+      <td class="muted"><%= new Date(l.created_at).toLocaleDateString('ar-EG') %></td></tr>
+      <% }) %>
+      <% if (!unassigned.length) { %><tr><td colspan="4" class="muted">لا يوجد عملاء بانتظار التوزيع.</td></tr><% } %>
+    </table>
+    <form method="post" action="/leads/distribution/run" class="mt">
+      <input type="hidden" name="_csrf" value="<%= csrf %>">
+      <button class="btn orange" <%= unassigned.length ? '' : 'disabled' %>>توزيع الآن على الحاضرين (<%= presentCount %>)</button>
+    </form>
+    <p class="muted mt">التوزيع بالتساوي حسب حمل كل موظف، مع إشعار فوري للموظف وسجل كامل للإسناد.</p>
+  </div>
+</div>
+<%- include('../partials/bottom') %>

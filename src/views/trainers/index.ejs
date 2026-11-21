@@ -1,0 +1,40 @@
+<%- include('../partials/top', {title, nav:'trainers'}) %>
+<div class="card">
+  <h2>إضافة مدرب</h2>
+  <form method="post" action="/trainers">
+    <input type="hidden" name="_csrf" value="<%= csrf %>">
+    <div class="form-row">
+      <div><label>الاسم *</label><input name="name" required></div>
+      <div><label>الهاتف</label><input name="phone" dir="ltr"></div>
+      <div><label>التخصصات</label><input name="specialties" placeholder="مثال: جرافيك، مونتاج"></div>
+    </div>
+    <button class="btn mt">حفظ المدرب</button>
+  </form>
+</div>
+<div class="card">
+  <h2>المدربون</h2>
+  <table>
+    <tr><th>الاسم</th><th>الهاتف</th><th>التخصصات</th><th>مجموعات نشطة</th><th>الحالة</th><th></th></tr>
+    <% rows.forEach(t => { %>
+    <tr>
+      <td><%= t.name %></td><td dir="ltr"><%= t.phone || '—' %></td><td><%= t.specialties || '—' %></td><td><%= t.groups_count %></td>
+      <td><span class="badge <%= t.status==='active'?'green':'gray' %>"><%= t.status==='active'?'نشط':'موقوف' %></span></td>
+      <td>
+        <details><summary class="btn ghost sm">تعديل</summary>
+          <form method="post" action="/trainers/<%= t.id %>/edit" class="mt">
+            <input type="hidden" name="_csrf" value="<%= csrf %>">
+            <div class="form-row">
+              <div><label>الاسم</label><input name="name" value="<%= t.name %>" required></div>
+              <div><label>الهاتف</label><input name="phone" value="<%= t.phone || '' %>" dir="ltr"></div>
+              <div><label>التخصصات</label><input name="specialties" value="<%= t.specialties || '' %>"></div>
+              <div><label>الحالة</label><select name="status"><option value="active" <%= t.status==='active'?'selected':'' %>>نشط</option><option value="inactive" <%= t.status==='inactive'?'selected':'' %>>موقوف</option></select></div>
+            </div>
+            <button class="btn sm mt">حفظ</button>
+          </form>
+        </details>
+      </td>
+    </tr>
+    <% }) %>
+  </table>
+</div>
+<%- include('../partials/bottom') %>

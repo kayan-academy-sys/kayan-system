@@ -1,0 +1,6 @@
+<%- include('partials/top', {title}) %>
+<% if (!user) { %><div class="auth-page"><div class="auth-card"><% } %>
+<div class="alert err"><%= message %></div>
+<p><a href="/">العودة للرئيسية</a></p>
+<% if (!user) { %></div></div><% } %>
+<%- include('partials/bottom') %>

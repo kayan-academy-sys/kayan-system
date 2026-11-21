@@ -1,0 +1,62 @@
+<%- include('../partials/top', {title, nav:'leads'}) %>
+<div class="grid c2">
+  <div class="card">
+    <h2>بيانات العميل</h2>
+    <table>
+      <tr><th>الاسم</th><td><%= customer.name %></td></tr>
+      <tr><th>الهاتف</th><td dir="ltr"><%= customer.phone %></td></tr>
+      <tr><th>البريد</th><td dir="ltr"><%= customer.email || '—' %></td></tr>
+      <tr><th>ملاحظات</th><td><%= customer.notes || '—' %></td></tr>
+      <tr><th>مسجل منذ</th><td class="muted"><%= new Date(customer.created_at).toLocaleDateString('ar-EG') %></td></tr>
+    </table>
+  </div>
+  <div class="card">
+    <h2>الفرص البيعية</h2>
+    <table>
+      <tr><th>الكورس</th><th>المصدر</th><th>الحالة</th><th>المسند إليه</th><th>التاريخ</th><th></th></tr>
+      <% leads.forEach(l => { %>
+      <tr>
+        <td><%= l.course_name || '—' %></td><td><%= L.leadSource[l.source] %></td>
+        <td><span class="badge <%= l.status.startsWith('booked')?'green':l.status==='closed_lost'?'red':'teal' %>"><%= L.leadStatus[l.status] %></span></td>
+        <td><%= l.assigned_name || '—' %></td>
+        <td class="muted"><%= new Date(l.created_at).toLocaleDateString('ar-EG') %></td>
+        <td><a class="btn ghost sm" href="/leads/<%= l.id %>">فتح</a></td>
+      </tr>
+      <% }) %>
+      <% if (!leads.length) { %><tr><td colspan="6" class="muted">لا توجد فرص.</td></tr><% } %>
+    </table>
+  </div>
+</div>
+<div class="grid c2">
+  <div class="card">
+    <h2>الحجوزات</h2>
+    <table>
+      <tr><th>النوع</th><th>الكورس/الباقة</th><th>الإجمالي</th><th>المدفوع</th><th>الحالة</th><th></th></tr>
+      <% orders.forEach(o => { %>
+      <tr>
+        <td><%= o.kind==='package'?'باقة':'كورس' %></td>
+        <td><%= o.kind==='package' ? o.package_name : o.course_name %></td>
+        <td><%= Number(o.total_price).toLocaleString('ar-EG') %></td>
+        <td><%= Number(o.paid).toLocaleString('ar-EG') %></td>
+        <td><span class="badge <%= o.status==='approved'?'green':o.status==='cancelled'?'red':'orange' %>"><%= L.orderStatus[o.status] %></span></td>
+        <td><a class="btn ghost sm" href="/orders/<%= o.id %>">فتح</a></td>
+      </tr>
+      <% }) %>
+      <% if (!orders.length) { %><tr><td colspan="6" class="muted">لا توجد حجوزات.</td></tr><% } %>
+    </table>
+  </div>
+  <div class="card">
+    <h2>التسجيلات بالكورسات</h2>
+    <table>
+      <tr><th>الكورس</th><th>المجموعة</th><th>الحالة</th></tr>
+      <% enrollments.forEach(e => { %>
+      <tr>
+        <td><%= e.course_name %></td><td><%= e.group_name || 'لم تُحدد بعد' %></td>
+        <td><span class="badge <%= e.status==='active'?'teal':e.status==='completed'?'green':'red' %>"><%= ({active:'نشط',completed:'مكتمل',cancelled:'ملغي'})[e.status] %></span></td>
+      </tr>
+      <% }) %>
+      <% if (!enrollments.length) { %><tr><td colspan="3" class="muted">لا توجد تسجيلات.</td></tr><% } %>
+    </table>
+  </div>
+</div>
+<%- include('../partials/bottom') %>

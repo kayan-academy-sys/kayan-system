@@ -1,0 +1,45 @@
+<%- include('../partials/top', {title, nav:'groups'}) %>
+<% if (can('groups.manage')) { %>
+<div class="card">
+  <h2>إنشاء مجموعة جديدة</h2>
+  <form method="post" action="/groups">
+    <input type="hidden" name="_csrf" value="<%= csrf %>">
+    <div class="form-row">
+      <div><label>اسم/كود المجموعة *</label><input name="name" required placeholder="GRP-DM-02"></div>
+      <div><label>الكورس *</label><select name="course_id"><% courses.forEach(c => { %><option value="<%= c.id %>"><%= c.name %></option><% }) %></select></div>
+      <div><label>المدرب</label><select name="trainer_id"><option value="">—</option><% trainers.forEach(t => { %><option value="<%= t.id %>"><%= t.name %></option><% }) %></select></div>
+      <div><label>السعة</label><input type="number" min="1" name="capacity" value="20"></div>
+    </div>
+    <div class="form-row">
+      <div><label>تاريخ البداية</label><input type="date" name="start_date"></div>
+      <div><label>تاريخ النهاية</label><input type="date" name="end_date"></div>
+      <div><label>الأيام</label><input name="days_of_week" placeholder="sat,tue"></div>
+      <div><label>من</label><input type="time" name="time_from"></div>
+      <div><label>إلى</label><input type="time" name="time_to"></div>
+      <div><label>الحالة</label><select name="status"><option value="draft">مسودة</option><option value="open">متاحة للحجز</option></select></div>
+    </div>
+    <button class="btn mt">إنشاء المجموعة</button>
+  </form>
+</div>
+<% } %>
+<div class="card">
+  <div class="flex between" style="margin-bottom:12px"><h2 style="border:none;margin:0;padding:0">المجموعات</h2>
+    <form method="get" class="flex"><select name="status"><option value="">كل الحالات</option>
+      <% Object.entries(L.groupStatus).forEach(([k,v]) => { %><option value="<%= k %>" <%= query.status===k?'selected':'' %>><%= v %></option><% }) %></select>
+      <button class="btn ghost sm">تصفية</button></form></div>
+  <table>
+    <tr><th>المجموعة</th><th>الكورس</th><th>المدرب</th><th>البداية</th><th>الأيام/المواعيد</th><th>الأماكن</th><th>الحالة</th><th></th></tr>
+    <% rows.forEach(g => { const avail = g.capacity - g.booked; %>
+    <tr>
+      <td><b><%= g.name %></b></td><td><%= g.course_name %></td><td><%= g.trainer_name || '—' %></td>
+      <td class="muted"><%= g.start_date ? new Date(g.start_date).toLocaleDateString('ar-EG') : '—' %></td>
+      <td class="muted"><%= g.days_of_week || '—' %><br><%= g.time_from ? String(g.time_from).slice(0,5) : '' %> - <%= g.time_to ? String(g.time_to).slice(0,5) : '' %></td>
+      <td><span class="badge <%= avail<=0?'red':avail<=3?'orange':'green' %>"><%= g.booked %>/<%= g.capacity %></span></td>
+      <td><span class="badge <%= g.status==='open'?'green':g.status==='nearly_full'?'orange':g.status==='cancelled'?'red':'teal' %>"><%= L.groupStatus[g.status] %></span></td>
+      <td><a class="btn ghost sm" href="/groups/<%= g.id %>">فتح</a></td>
+    </tr>
+    <% }) %>
+    <% if (!rows.length) { %><tr><td colspan="8" class="muted">لا توجد مجموعات.</td></tr><% } %>
+  </table>
+</div>
+<%- include('../partials/bottom') %>

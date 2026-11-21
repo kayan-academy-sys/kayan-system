@@ -1,0 +1,35 @@
+<%- include('../partials/top', {title, nav:'monitor'}) %>
+<div class="card">
+  <h2>أداء فريق المبيعات</h2>
+  <table>
+    <tr><th>الموظف</th><th>الدور</th><th>عملاء نشطون</th><th>جدد</th><th>متابعات متأخرة</th><th>حجوزات</th></tr>
+    <% staffStats.forEach(s => { %>
+    <tr>
+      <td><%= s.name %></td>
+      <td><span class="badge <%= s.role==='sales_team_leader'?'orange':'teal' %>"><%= s.role==='sales_team_leader'?'تيم ليدر':'مبيعات' %></span></td>
+      <td><%= s.active_leads %></td><td><%= s.new_leads %></td>
+      <td><% if (s.overdue > 0) { %><span class="badge red"><%= s.overdue %></span><% } else { %>0<% } %></td>
+      <td><span class="badge green"><%= s.booked %></span></td>
+    </tr>
+    <% }) %>
+  </table>
+</div>
+<div class="card">
+  <h2>أحدث أنشطة الفريق (آخر 60)</h2>
+  <table>
+    <tr><th>الوقت</th><th>الموظف</th><th>العميل</th><th>النوع</th><th>النتيجة</th><th>ملاحظات</th><th></th></tr>
+    <% recent.forEach(a => { %>
+    <tr>
+      <td class="muted" style="white-space:nowrap"><%= new Date(a.created_at).toLocaleString('ar-EG') %></td>
+      <td><%= a.user_name %></td>
+      <td><%= a.customer_name %><br><span class="muted" dir="ltr"><%= a.customer_phone %></span></td>
+      <td><span class="badge teal"><%= a.type==='status_change'?'تغيير حالة':L.activityType[a.type] %></span></td>
+      <td><%= a.type==='status_change' ? (L.leadStatus[a.result]||a.result) : (a.result || '—') %></td>
+      <td class="muted"><%= a.notes || '—' %></td>
+      <td><a class="btn ghost sm" href="/leads/<%= a.lead_id %>">فتح</a></td>
+    </tr>
+    <% }) %>
+    <% if (!recent.length) { %><tr><td colspan="7" class="muted">لا توجد أنشطة بعد.</td></tr><% } %>
+  </table>
+</div>
+<%- include('../partials/bottom') %>
