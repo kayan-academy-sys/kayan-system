@@ -22,7 +22,7 @@ const CAPS = {
     'orders.view.all', 'orders.create',
     'payments.view', 'installments.view', 'expenses.view', 'accounts.view',
     'reception.view', 'attendance.record', 'attendance.view',
-    'reports.sales', 'reports.finance', 'reports.export',
+    'reports.sales', 'reports.finance', 'reports.export', 'commissions.view.all',
     'audit.view', 'users.request', 'notifications.view', 'ai.use'
   ],
   sales_manager: [
@@ -30,29 +30,29 @@ const CAPS = {
     'presence.manage', 'customers.view', 'customers.edit',
     'groups.view', 'packages.view', 'courses.view',
     'orders.create', 'orders.view.all',
-    'reports.sales', 'reports.export', 'notifications.view', 'ai.use'
+    'reports.sales', 'reports.export', 'notifications.view', 'ai.use', 'commissions.view.own'
   ],
   sales_team_leader: [
     'dashboard.view', 'leads.view.own', 'leads.create', 'leads.edit', 'leads.monitor',
     'customers.view', 'groups.view', 'packages.view', 'courses.view',
-    'orders.create', 'orders.view.own', 'notifications.view', 'ai.use'
+    'orders.create', 'orders.view.own', 'notifications.view', 'ai.use', 'commissions.view.own'
   ],
   sales_staff: [
     'dashboard.view', 'leads.view.own', 'leads.create', 'leads.edit',
     'customers.view', 'groups.view', 'packages.view', 'courses.view',
-    'orders.create', 'orders.view.own', 'notifications.view', 'ai.use'
+    'orders.create', 'orders.view.own', 'notifications.view', 'ai.use', 'commissions.view.own'
   ],
   accounting_manager: [
     'dashboard.view', 'payments.view', 'payments.create', 'payments.void',
     'installments.view', 'installments.manage', 'expenses.view', 'expenses.create', 'expenses.void',
     'expense_types.manage', 'accounts.view', 'accounts.manage', 'transfers.create', 'transfers.view',
-    'closings.manage', 'orders.view.all', 'orders.cancel',
+    'closings.manage', 'orders.view.all', 'orders.cancel', 'commissions.view.all', 'commissions.manage',
     'reports.finance', 'reports.export', 'notifications.view', 'ai.use'
   ],
   accounting_staff: [
     'dashboard.view', 'payments.view', 'payments.create', 'installments.view',
     'expenses.view', 'expenses.create', 'accounts.view', 'transfers.view',
-    'orders.view.all', 'reports.finance', 'notifications.view', 'ai.use'
+    'orders.view.all', 'reports.finance', 'notifications.view', 'ai.use', 'commissions.view.all'
   ],
   reception: [
     'dashboard.view', 'reception.view', 'attendance.record', 'attendance.view',

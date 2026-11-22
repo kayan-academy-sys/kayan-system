@@ -1,0 +1,26 @@
+<%- include('../partials/top', {title, nav:'mycomm'}) %>
+<% const STATUS = { pending: 'معلّقة', approved: 'معتمدة', paid: 'مدفوعة', cancelled: 'ملغاة' }; %>
+<div class="card">
+  <h2>عمولتي</h2>
+  <div class="grid c3 mt">
+    <div class="stat"><div class="num"><%= Number(totals.pending || 0).toLocaleString('ar-EG') %></div><div class="lbl">معلّقة</div></div>
+    <div class="stat"><div class="num"><%= Number(totals.approved || 0).toLocaleString('ar-EG') %></div><div class="lbl">معتمدة</div></div>
+    <div class="stat"><div class="num"><%= Number(totals.paid || 0).toLocaleString('ar-EG') %></div><div class="lbl">مدفوعة</div></div>
+  </div>
+  <table class="mt cards-sm">
+    <tr><th>الحجز</th><th>العميل</th><th>الأساس</th><th>المبلغ</th><th>الحالة</th></tr>
+    <% rows.forEach(cm => { %>
+    <tr style="<%= cm.status === 'cancelled' ? 'opacity:.55' : '' %>">
+      <td><a href="/orders/<%= cm.order_id %>">#<%= cm.order_id %></a><br><span class="muted"><%= new Date(cm.order_at).toLocaleDateString('ar-EG') %></span></td>
+      <td><%= cm.customer_name %></td>
+      <td><%= basisLabels[cm.basis] %><br><span class="muted"><%= Number(cm.basis_amount).toLocaleString('ar-EG') %> ج.م<%= cm.rate ? ' × ' + Number(cm.rate) + '٪' : '' %></span></td>
+      <td><b><%= Number(cm.amount).toLocaleString('ar-EG') %></b> ج.م</td>
+      <td><span class="badge <%= cm.status === 'paid' ? 'green' : (cm.status === 'cancelled' ? 'red' : 'orange') %>"><%= STATUS[cm.status] %></span>
+        <% if (cm.status === 'paid' && cm.paid_at) { %><br><span class="muted"><%= new Date(cm.paid_at).toLocaleDateString('ar-EG') %></span><% } %></td>
+    </tr>
+    <% }) %>
+    <% if (!rows.length) { %><tr><td colspan="5" class="muted">لا توجد عمولات مسجلة لك بعد.</td></tr><% } %>
+  </table>
+  <p class="muted mt">تظهر هنا عمولاتك أنت فقط، وتُعتمد وتُصرف من قسم الحسابات.</p>
+</div>
+<%- include('../partials/bottom') %>
