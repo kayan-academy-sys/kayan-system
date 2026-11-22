@@ -3,6 +3,7 @@ const express = require('express');
 const cookieSession = require('cookie-session');
 const config = require('./config');
 const { loadUser, csrfCheck } = require('./middleware/auth');
+const previewGate = require('./middleware/gate');
 
 const fs = require('fs');
 // Resolve asset dirs across runtimes (Render: src/; Netlify bundled function: cwd or ../../src)
@@ -37,6 +38,9 @@ app.use((req, res, next) => {
   res.set('Referrer-Policy', 'same-origin');
   next();
 });
+
+// بوابة المعاينة: لا-op ما لم PREVIEW_GATE_REQUIRED=1 (انظر middleware/gate.js)
+app.use(previewGate);
 
 app.use('/static', express.static(PUBLIC_DIR, { maxAge: '7d' }));
 
