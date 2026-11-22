@@ -65,6 +65,7 @@ app.use('/accounting', require('./routes/accounting'));
 const commissionsRoutes = require('./routes/commissions');
 app.use('/accounting/commissions', commissionsRoutes.accounting);
 app.use('/commissions', commissionsRoutes.my);
+app.use('/leaderboard', commissionsRoutes.leaderboard);
 app.use('/reception', require('./routes/reception'));
 app.use('/reports', require('./routes/reports'));
 app.use('/automation', require('./routes/automation'));

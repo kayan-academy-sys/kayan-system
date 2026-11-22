@@ -111,4 +111,56 @@ router.post('/settings', requireCap('settings.manage'), async (req, res) => {
   res.redirect('/admin/settings?saved=1');
 });
 
+// ---------- النسخ الاحتياطي (مدير النظام فقط) ----------
+router.get('/backup', requireCap('backups.manage'), async (req, res) => {
+  let backups = [];
+  try {
+    backups = (await q('SELECT * FROM backup_log ORDER BY created_at DESC LIMIT 20')).rows;
+  } catch (e) { /* الجدول قد لا يكون وُجد بعد */ }
+  res.render('admin/backup', {
+    title: 'النسخ الاحتياطي', nav: 'backup', backups,
+    ghConfigured: !!process.env.BACKUP_GH_TOKEN,
+    triggered: req.query.triggered === '1', err: req.query.err || null
+  });
+});
+
+router.post('/backup/run', requireCap('backups.manage'), async (req, res) => {
+  const token = process.env.BACKUP_GH_TOKEN;
+  if (!token) return res.redirect('/admin/backup?err=not_configured');
+  try {
+    const r = await fetch('https://api.github.com/repos/kayan-academy-sys/kayan-backups/actions/workflows/backup.yml/dispatches', {
+      method: 'POST',
+      headers: {
+        Authorization: 'token ' + token,
+        Accept: 'application/vnd.github+json',
+        'Content-Type': 'application/json',
+        'User-Agent': 'kayan-app'
+      },
+      body: JSON.stringify({ ref: 'main' })
+    });
+    if (!r.ok) throw new Error('github ' + r.status);
+    await audit(req, 'backup.manual_trigger', 'backup', null, {});
+    res.redirect('/admin/backup?triggered=1');
+  } catch (e) {
+    res.redirect('/admin/backup?err=dispatch_failed');
+  }
+});
+
+// تنزيل نسخة كاملة من كل البيانات بصيغة JSON (نسخة يدوية يحتفظ بها المدير)
+router.get('/backup/download', requireCap('backups.manage'), async (req, res) => {
+  const tables = (await q(
+    `SELECT table_name FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE' ORDER BY table_name`
+  )).rows.map(r => r.table_name).filter(t => t !== '_migrations');
+  const out = { app: 'kayan-system', format: 'json-export-v1', generated_at: new Date().toISOString(), tables: {} };
+  for (const t of tables) {
+    const ident = '"' + t.replace(/"/g, '""') + '"';
+    out.tables[t] = (await q(`SELECT row_to_json(x) AS j FROM ${ident} x`)).rows.map(r => r.j);
+  }
+  await audit(req, 'backup.download', 'backup', null, { tables: tables.length });
+  const stamp = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14);
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="kayan-backup-${stamp}.json"`);
+  res.send(JSON.stringify(out));
+});
+
 module.exports = router;

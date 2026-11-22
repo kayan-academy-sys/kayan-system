@@ -3,7 +3,7 @@ const { q, tx } = require('../db');
 const { requireAuth, requireCap } = require('../middleware/auth');
 const { audit } = require('../lib/audit');
 const { setSetting } = require('../lib/settings');
-const { can } = require('../lib/permissions');
+const { can, ROLES } = require('../lib/permissions');
 const { RULE_KEY, DEFAULTS, METHOD_LABELS, getRule, computeMonth } = require('../lib/commissions');
 
 function monthKeyOf(s) {
@@ -118,4 +118,33 @@ my.get('/', async (req, res) => {
   res.render('commissions/my', { title: 'عمولتي', nav: 'mycomm', rows, totals });
 });
 
-module.exports = { accounting, my };
+// ---------- لوحة ترتيب المبيعات (نفس صلاحية الاطلاع على كل العمولات) ----------
+const leaderboard = express.Router();
+leaderboard.use(requireAuth, requireCap('commissions.view.all'));
+
+leaderboard.get('/', async (req, res) => {
+  const rule = await getRule();
+  const mkey = monthKeyOf(req.query.month) || currentMonthKey();
+  const users = (await q(
+    `SELECT id, name, role FROM users WHERE role IN ('sales_manager','sales_team_leader','sales_staff') AND active=TRUE ORDER BY name`
+  )).rows;
+  const rows = [];
+  for (const u of users) {
+    const r = await computeMonth(u.id, mkey, rule);
+    rows.push({
+      name: u.name,
+      roleLabel: ROLES[u.role] || u.role,
+      target: r.target,
+      invoiced: r.invoiced,
+      collected: r.collected,
+      pct: r.target > 0 ? Math.round((r.invoiced / r.target) * 1000) / 10 : 0,
+      eligible: r.eligible,
+      amount: r.amount
+    });
+  }
+  // الترتيب حسب نسبة تحقيق التارجت (اختيار محمد)، ثم الفواتير عند التعادل
+  rows.sort((a, b) => b.pct - a.pct || b.invoiced - a.invoiced || a.name.localeCompare(b.name, 'ar'));
+  res.render('commissions/leaderboard', { title: 'ترتيب المبيعات', nav: 'leaderboard', rows, month: mkey });
+});
+
+module.exports = { accounting, my, leaderboard };

@@ -1,0 +1,50 @@
+<%- include('../partials/top', {title, nav:'backup'}) %>
+<% if (triggered) { %><div class="alert ok">بدأت النسخة الاحتياطية. تظهر في السجل بعد اكتمالها ونجاح اختبار الاسترجاع (عادة خلال دقيقتين).</div><% } %>
+<% if (err === 'not_configured') { %><div class="alert err">التشغيل الفوري غير مفعّل بعد على هذا الخادم. استخدم «تنزيل نسخة كاملة الآن».</div><% } %>
+<% if (err === 'dispatch_failed') { %><div class="alert err">تعذر بدء النسخة الاحتياطية الآن. حاول لاحقًا أو نزّل نسخة مباشرة.</div><% } %>
+
+<div class="card">
+  <h2>النسخ الاحتياطي التلقائي</h2>
+  <p class="muted">تؤخذ نسخة كاملة من قاعدة البيانات تلقائيًا كل ليلة (~١ صباحًا)، تُشفَّر وتُحفظ خارج الاستضافة، ويُختبر استرجاعها فعليًا مع كل نسخة. لا تُسجَّل النسخة هنا إلا بعد نجاح اختبار الاسترجاع.</p>
+  <div class="actions" style="display:flex;gap:10px;flex-wrap:wrap">
+    <a class="btn" href="/admin/backup/download">تنزيل نسخة كاملة الآن</a>
+    <% if (ghConfigured) { %>
+    <form method="post" action="/admin/backup/run" onsubmit="return confirm('بدء نسخة احتياطية مشفرة الآن؟')">
+      <input type="hidden" name="_csrf" value="<%= csrf %>">
+      <button class="btn ghost">تشغيل نسخة احتياطية فورية</button>
+    </form>
+    <% } %>
+  </div>
+  <p class="muted mt">«تنزيل نسخة كاملة الآن» يحفظ ملف JSON بكل بيانات النظام على جهازك — احفظه في مكان آمن فهو غير مشفر.</p>
+</div>
+
+<div class="card">
+  <h2>سجل النسخ</h2>
+  <% if (!backups.length) { %>
+    <p class="muted">لا توجد نسخ مسجلة بعد. تُسجَّل أول نسخة تلقائية بعد اكتمالها الليلة.</p>
+  <% } else { %>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>التاريخ والوقت</th>
+          <th>الملف</th>
+          <th>الحجم</th>
+          <th>اختبار الاسترجاع</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% backups.forEach(b => { %>
+        <tr>
+          <td><%= new Date(b.created_at).toLocaleString('ar-EG', { timeZone: 'Africa/Cairo' }) %></td>
+          <td dir="ltr" class="muted"><%= b.file_name %></td>
+          <td><%= b.byte_size ? (Number(b.byte_size) / 1024).toFixed(1) + ' ك.ب' : '—' %></td>
+          <td><span class="badge <%= b.restore_test ? 'green' : 'red' %>"><%= b.restore_test ? 'ناجح' : 'فشل' %></span></td>
+        </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+  <% } %>
+</div>
+<%- include('../partials/bottom') %>

@@ -1,0 +1,52 @@
+<%- include('../partials/top', {title, nav:'leaderboard'}) %>
+<div class="card">
+  <h2>ترتيب المبيعات — <%= month %></h2>
+  <p class="muted">الترتيب حسب نسبة تحقيق التارجت (فواتير الشهر المعتمدة ÷ التارجت الشهري). العمولة المعروضة تقديرية وفق القاعدة الحالية قبل الاعتماد.</p>
+  <form method="get" action="/leaderboard" class="form" style="max-width:280px">
+    <label>الشهر
+      <input type="month" name="month" value="<%= month %>">
+    </label>
+    <div class="actions"><button class="btn">عرض</button></div>
+  </form>
+</div>
+
+<div class="card">
+  <% if (!rows.length) { %>
+    <p class="muted">لا يوجد موظفو مبيعات نشطون بعد.</p>
+  <% } else { %>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>الاسم</th>
+          <th>الدور</th>
+          <th>التارجت</th>
+          <th>فواتير الشهر</th>
+          <th>نسبة التحقيق</th>
+          <th>التحصيل</th>
+          <th>عمولة تقديرية</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% rows.forEach((r, i) => { %>
+        <tr>
+          <td><b><%= i + 1 %></b></td>
+          <td><%= r.name %></td>
+          <td class="muted"><%= r.roleLabel %></td>
+          <td><%= Number(r.target).toLocaleString('ar-EG') %></td>
+          <td><%= Number(r.invoiced).toLocaleString('ar-EG') %></td>
+          <td><span class="badge <%= r.pct >= 100 ? 'green' : (r.pct >= 80 ? 'teal' : 'orange') %>"><%= r.pct.toLocaleString('ar-EG') %>٪</span></td>
+          <td><%= Number(r.collected).toLocaleString('ar-EG') %></td>
+          <td>
+            <%= Number(r.amount).toLocaleString('ar-EG') %>
+            <% if (!r.eligible) { %><span class="badge red">غير مستحق</span><% } %>
+          </td>
+        </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+  <% } %>
+</div>
+<%- include('../partials/bottom') %>
