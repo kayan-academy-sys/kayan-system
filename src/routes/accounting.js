@@ -45,22 +45,31 @@ router.post('/closings', requireCap('closings.manage'), async (req, res) => {
   res.redirect('/accounting');
 });
 
-// حساب المحاضرين (قراءة فقط — طريقة احتساب المستحقات لم تُعتمد بعد)
+// حساب المحاضرين — مبلغ متفق عليه لكل مجموعة يُستحق عند انتهائها (حالة finished)
 router.get('/trainers', async (req, res) => {
   const { rows } = await q(`SELECT t.id AS trainer_id, t.name AS trainer_name, t.status AS trainer_status,
-      g.id AS group_id, g.name AS group_name, c.name AS course_name,
-      s.id AS session_id, s.session_date, s.start_time, s.end_time, s.status AS session_status
+      g.id AS group_id, g.name AS group_name, g.status AS group_status, c.name AS course_name,
+      s.id AS session_id, s.session_date, s.start_time, s.end_time, s.status AS session_status,
+      tm.agreed_amount, tm.notes AS terms_notes
     FROM trainers t
     LEFT JOIN groups g ON g.trainer_id = t.id
     LEFT JOIN courses c ON c.id = g.course_id
     LEFT JOIN sessions s ON s.group_id = g.id
+    LEFT JOIN trainer_group_terms tm ON tm.group_id = g.id
     ORDER BY t.id, g.id NULLS LAST, s.session_date NULLS LAST, s.start_time NULLS LAST`);
+  const pays = (await q(`SELECT p.*, g.name AS group_name, u.name AS created_by_name FROM trainer_payments p
+    LEFT JOIN groups g ON g.id=p.group_id LEFT JOIN users u ON u.id=p.created_by
+    WHERE p.status='active' ORDER BY p.created_at DESC`)).rows;
   const trainers = {};
   for (const r of rows) {
-    if (!trainers[r.trainer_id]) trainers[r.trainer_id] = { id: r.trainer_id, name: r.trainer_name, status: r.trainer_status, groups: {}, doneCount: 0, doneMinutes: 0, monthCount: 0, monthMinutes: 0, nextSession: null };
+    if (!trainers[r.trainer_id]) trainers[r.trainer_id] = { id: r.trainer_id, name: r.trainer_name, status: r.trainer_status, groups: {}, doneCount: 0, doneMinutes: 0, monthCount: 0, monthMinutes: 0, nextSession: null, agreedTotal: 0, earned: 0, paid: 0 };
     const T = trainers[r.trainer_id];
     if (!r.group_id) continue;
-    if (!T.groups[r.group_id]) T.groups[r.group_id] = { id: r.group_id, name: r.group_name, course: r.course_name, sessions: [] };
+    if (!T.groups[r.group_id]) {
+      const agreed = r.agreed_amount !== null ? parseFloat(r.agreed_amount) : null;
+      T.groups[r.group_id] = { id: r.group_id, name: r.group_name, course: r.course_name, status: r.group_status, agreed, terms_notes: r.terms_notes, sessions: [] };
+      if (agreed !== null) { T.agreedTotal += agreed; if (r.group_status === 'finished') T.earned += agreed; }
+    }
     if (!r.session_id) continue;
     T.groups[r.group_id].sessions.push(r);
     if (r.session_status === 'done') {
@@ -79,9 +88,49 @@ router.get('/trainers', async (req, res) => {
       if (!T.nextSession || new Date(r.session_date) < new Date(T.nextSession.session_date)) T.nextSession = r;
     }
   }
-  const list = Object.values(trainers).map(T => ({ ...T, groups: Object.values(T.groups) }));
-  const totals = list.reduce((a, T) => ({ done: a.done + T.doneCount, mins: a.mins + T.doneMinutes, mDone: a.mDone + T.monthCount, mMins: a.mMins + T.monthMinutes }), { done: 0, mins: 0, mDone: 0, mMins: 0 });
-  res.render('accounting/trainers', { title: 'حساب المحاضرين', nav: 'trainer-accounts', list, totals });
+  for (const p of pays) { const T = trainers[p.trainer_id]; if (T) T.paid += parseFloat(p.amount); }
+  const list = Object.values(trainers).map(T => ({ ...T, groups: Object.values(T.groups), balance: T.earned - T.paid }));
+  const totals = list.reduce((a, T) => ({ agreed: a.agreed + T.agreedTotal, earned: a.earned + T.earned, paid: a.paid + T.paid }), { agreed: 0, earned: 0, paid: 0 });
+  totals.balance = totals.earned - totals.paid;
+  res.render('accounting/trainers', { title: 'حساب المحاضرين', nav: 'trainer-accounts', list, totals, pays, canManage: can(req.user.roles, 'expenses.create'), canVoid: can(req.user.roles, 'expenses.void') });
+});
+
+// تحديد/تعديل المبلغ المتفق عليه لمجموعة
+router.post('/trainers/terms', requireCap('expenses.create'), async (req, res) => {
+  const amount = parseFloat(req.body.agreed_amount);
+  if (!(amount >= 0)) return res.status(400).render('error', { title: 'قيمة غير صالحة', message: 'المبلغ المتفق عليه غير صالح.' });
+  const g = (await q('SELECT id, trainer_id, name FROM groups WHERE id=$1', [req.body.group_id])).rows[0];
+  if (!g) return res.status(404).render('error', { title: 'غير موجودة', message: 'المجموعة غير موجودة.' });
+  if (!g.trainer_id) return res.status(400).render('error', { title: 'بلا محاضر', message: 'عيّن محاضرًا للمجموعة أولًا من صفحة المجموعات.' });
+  await q(`INSERT INTO trainer_group_terms (group_id, trainer_id, agreed_amount, notes, created_by) VALUES ($1,$2,$3,$4,$5)
+    ON CONFLICT (group_id) DO UPDATE SET agreed_amount=$3, notes=$4, trainer_id=$2, updated_at=now()`,
+    [g.id, g.trainer_id, amount, req.body.notes || null, req.user.id]);
+  await audit(req, 'trainer_terms_set', 'group', g.id, { group: g.name, agreed_amount: amount });
+  res.redirect('/accounting/trainers');
+});
+
+// تسجيل دفعة لمحاضر (سجل منفصل — لا يخصم من الخزينة في هذه النسخة)
+router.post('/trainers/payments', requireCap('expenses.create'), async (req, res) => {
+  const amount = parseFloat(req.body.amount);
+  if (!(amount > 0)) return res.status(400).render('error', { title: 'قيمة غير صالحة', message: 'قيمة الدفعة غير صالحة.' });
+  const t = (await q('SELECT id, name FROM trainers WHERE id=$1', [req.body.trainer_id])).rows[0];
+  if (!t) return res.status(404).render('error', { title: 'غير موجود', message: 'المحاضر غير موجود.' });
+  let groupId = req.body.group_id || null;
+  if (groupId) {
+    const g = (await q('SELECT id, trainer_id FROM groups WHERE id=$1', [groupId])).rows[0];
+    if (!g || g.trainer_id !== t.id) return res.status(400).render('error', { title: 'قيمة غير صالحة', message: 'المجموعة لا تتبع هذا المحاضر.' });
+  }
+  await q('INSERT INTO trainer_payments (trainer_id, group_id, amount, method, notes, created_by) VALUES ($1,$2,$3,$4,$5,$6)',
+    [t.id, groupId, amount, req.body.method || null, req.body.notes || null, req.user.id]);
+  await audit(req, 'trainer_payment_recorded', 'trainer', t.id, { trainer: t.name, amount, group_id: groupId });
+  res.redirect('/accounting/trainers');
+});
+
+// إلغاء دفعة لمحاضر
+router.post('/trainers/payments/:id/void', requireCap('expenses.void'), async (req, res) => {
+  const r = await q(`UPDATE trainer_payments SET status='void', voided_by=$1, voided_at=now() WHERE id=$2 AND status='active'`, [req.user.id, req.params.id]);
+  if (r.rowCount) await audit(req, 'trainer_payment_voided', 'trainer_payment', req.params.id, {});
+  res.redirect('/accounting/trainers');
 });
 
 // المدفوعات

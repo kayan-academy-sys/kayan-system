@@ -1,21 +1,38 @@
 <%- include('../partials/top', {title, nav:'trainer-accounts'}) %>
-<div class="alert info">هذه الصفحة تعرض سجل المحاضرات الفعلية لكل محاضر (قراءة فقط). طريقة احتساب مستحقات المحاضرين لم تُعتمد بعد — ستُضاف خانة المستحقات هنا بعد اعتماد قاعدة الحساب.</div>
-<div class="grid c3">
-  <div class="stat"><div class="num"><%= list.filter(t=>t.status==='active').length %></div><div class="lbl">محاضرون نشطون</div></div>
-  <div class="stat"><div class="num"><%= totals.mDone %></div><div class="lbl">محاضرات تمت هذا الشهر</div></div>
-  <div class="stat orange"><div class="num"><%= (totals.mMins/60).toLocaleString('ar-EG',{maximumFractionDigits:1}) %></div><div class="lbl">ساعات تدريس هذا الشهر</div></div>
+<div class="alert info">قاعدة الحساب: مبلغ متفق عليه لكل مجموعة، يُستحق للمحاضر عند انتهاء المجموعة (تغيير حالتها إلى «منتهية» من صفحة المجموعات). تسجيل الدفعات هنا سجل محاسبي منفصل ولا يخصم من الخزينة في هذه النسخة.</div>
+<div class="grid c4">
+  <div class="stat"><div class="num"><%= totals.agreed.toLocaleString('ar-EG') %></div><div class="lbl">إجمالي متفق عليه (ج.م)</div></div>
+  <div class="stat"><div class="num"><%= totals.earned.toLocaleString('ar-EG') %></div><div class="lbl">مستحق — مجموعات منتهية (ج.م)</div></div>
+  <div class="stat"><div class="num"><%= totals.paid.toLocaleString('ar-EG') %></div><div class="lbl">مدفوع (ج.م)</div></div>
+  <div class="stat orange"><div class="num"><%= totals.balance.toLocaleString('ar-EG') %></div><div class="lbl">رصيد مستحق (ج.م)</div></div>
 </div>
 <% list.forEach(T => { %>
 <div class="card">
   <h2><%= T.name %> <% if (T.status!=='active') { %><span class="badge gray">غير نشط</span><% } %></h2>
-  <div class="grid c3" style="margin-bottom:12px">
-    <div class="stat"><div class="num"><%= T.doneCount %></div><div class="lbl">محاضرات تمت (إجمالي)</div></div>
-    <div class="stat"><div class="num"><%= (T.doneMinutes/60).toLocaleString('ar-EG',{maximumFractionDigits:1}) %></div><div class="lbl">ساعات (إجمالي)</div></div>
-    <div class="stat"><div class="num"><%= T.nextSession ? new Date(T.nextSession.session_date).toLocaleDateString('ar-EG') : '—' %></div><div class="lbl">أقرب محاضرة قادمة</div></div>
+  <div class="grid c4" style="margin-bottom:12px">
+    <div class="stat"><div class="num"><%= T.agreedTotal.toLocaleString('ar-EG') %></div><div class="lbl">متفق عليه (ج.م)</div></div>
+    <div class="stat"><div class="num"><%= T.earned.toLocaleString('ar-EG') %></div><div class="lbl">مستحق (ج.م)</div></div>
+    <div class="stat"><div class="num"><%= T.paid.toLocaleString('ar-EG') %></div><div class="lbl">مدفوع (ج.م)</div></div>
+    <div class="stat orange"><div class="num"><%= T.balance.toLocaleString('ar-EG') %></div><div class="lbl">الرصيد (ج.م)</div></div>
   </div>
   <% if (!T.groups.length) { %><p class="muted">لا توجد مجموعات مرتبطة بهذا المحاضر.</p><% } %>
   <% T.groups.forEach(G => { %>
-    <h3 style="font-size:14.5px;color:var(--teal-dark);margin:10px 0 6px"><%= G.name %> — <%= G.course %></h3>
+    <h3 style="font-size:14.5px;color:var(--teal-dark);margin:10px 0 6px"><%= G.name %> — <%= G.course %>
+      <span class="badge <%= G.status==='finished'?'green':G.status==='cancelled'?'red':'teal' %>"><%= {draft:'مسودة',open:'مفتوحة',nearly_full:'اقتربت من الاكتمال',full:'مكتملة العدد',running:'جارية',finished:'منتهية',cancelled:'ملغاة'}[G.status] || G.status %></span>
+      <% if (G.status==='finished' && G.agreed!==null) { %><span class="badge green">مستحق</span><% } %>
+    </h3>
+    <% if (canManage) { %>
+    <form method="post" action="/accounting/trainers/terms" class="flex" style="margin-bottom:8px">
+      <input type="hidden" name="_csrf" value="<%= csrf %>">
+      <input type="hidden" name="group_id" value="<%= G.id %>">
+      <label style="margin:0">المبلغ المتفق عليه</label>
+      <input type="number" step="0.01" min="0" name="agreed_amount" value="<%= G.agreed!==null ? G.agreed : '' %>" placeholder="غير محدد" style="width:140px" required>
+      <input name="notes" value="<%= G.terms_notes || '' %>" placeholder="ملاحظة (اختياري)" style="width:220px">
+      <button class="btn sm">حفظ</button>
+    </form>
+    <% } else { %>
+    <p class="muted">المبلغ المتفق عليه: <%= G.agreed!==null ? Number(G.agreed).toLocaleString('ar-EG') + ' ج.م' : 'غير محدد' %></p>
+    <% } %>
     <% if (!G.sessions.length) { %><p class="muted">لا محاضرات مسجلة لهذه المجموعة بعد.</p><% } else { %>
     <table>
       <tr><th>التاريخ</th><th>من</th><th>إلى</th><th>المدة (دقيقة)</th><th>الحالة</th></tr>
@@ -31,6 +48,37 @@
     </table>
     <% } %>
   <% }) %>
+  <% const tPays = pays.filter(p => p.trainer_id === T.id); %>
+  <% if (tPays.length) { %>
+    <h3 style="font-size:14.5px;color:var(--teal-dark);margin:12px 0 6px">الدفعات المسجلة</h3>
+    <table>
+      <tr><th>التاريخ</th><th>المبلغ</th><th>المجموعة</th><th>الطريقة</th><th>ملاحظات</th><th>سجّلها</th><th></th></tr>
+      <% tPays.forEach(P => { %>
+      <tr>
+        <td><%= new Date(P.created_at).toLocaleDateString('ar-EG') %></td>
+        <td><%= Number(P.amount).toLocaleString('ar-EG') %></td>
+        <td><%= P.group_name || '—' %></td>
+        <td><%= P.method || '—' %></td>
+        <td><%= P.notes || '—' %></td>
+        <td><%= P.created_by_name || '—' %></td>
+        <td><% if (canVoid) { %><form method="post" action="/accounting/trainers/payments/<%= P.id %>/void" class="inline"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn danger sm">إلغاء</button></form><% } %></td>
+      </tr>
+      <% }) %>
+    </table>
+  <% } %>
+  <% if (canManage) { %>
+  <details style="margin-top:10px"><summary class="btn ghost sm">تسجيل دفعة للمحاضر</summary>
+    <form method="post" action="/accounting/trainers/payments" class="flex mt">
+      <input type="hidden" name="_csrf" value="<%= csrf %>">
+      <input type="hidden" name="trainer_id" value="<%= T.id %>">
+      <input type="number" step="0.01" min="0.01" name="amount" placeholder="المبلغ *" style="width:130px" required>
+      <select name="group_id" style="width:180px"><option value="">بدون ربط بمجموعة</option><% T.groups.forEach(G => { %><option value="<%= G.id %>"><%= G.name %></option><% }) %></select>
+      <input name="method" placeholder="طريقة الدفع" style="width:130px">
+      <input name="notes" placeholder="ملاحظات" style="width:200px">
+      <button class="btn sm">تسجيل</button>
+    </form>
+  </details>
+  <% } %>
 </div>
 <% }) %>
 <% if (!list.length) { %><div class="card"><p class="muted">لا يوجد محاضرون مسجلون بعد.</p></div><% } %>
