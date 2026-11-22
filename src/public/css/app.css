@@ -86,6 +86,9 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--teal);bo
 .burger:hover{background:var(--teal-050)}
 .nav-overlay{display:none;position:fixed;inset:0;background:rgba(0,40,45,.45);z-index:55}
 .bottombar{display:none}
+details.filters>summary{display:none}
+.sidebar nav a .ic2 svg{width:17px;height:17px;vertical-align:-3px}
+.bell svg{vertical-align:middle}
 
 @media(max-width:860px){
   .burger{display:none}
@@ -94,6 +97,17 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--teal);bo
   .bottombar{display:flex;position:fixed;bottom:0;left:0;right:0;z-index:56;background:#fff;border-top:1px solid var(--line,#e5ecec);padding:6px 4px calc(6px + env(safe-area-inset-bottom));box-shadow:0 -2px 12px rgba(0,40,45,.06)}
   .bottombar a,.bottombar button{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;background:none;border:none;font:inherit;font-size:11px;color:#6b7f80;text-decoration:none;padding:6px 2px;border-radius:10px;cursor:pointer;min-height:48px;justify-content:center}
   .bottombar .ic{font-size:20px;line-height:1;position:relative}
+  .bottombar .ic svg{width:22px;height:22px;display:block}
+  .bottombar a.fab .ic svg{width:26px;height:26px}
+  /* الفلاتر مطوية افتراضيًا على الموبايل */
+  details.filters>summary{display:flex;align-items:center;justify-content:center;gap:6px;font-weight:700;color:var(--teal-dark);cursor:pointer;padding:10px;border:1px solid var(--line);border-radius:10px;margin-bottom:12px;list-style:none;user-select:none}
+  details.filters>summary::-webkit-details-marker{display:none}
+  /* زر الحفظ ثابت فوق الشريط السفلي */
+  .card form .btn.mt{position:sticky;bottom:84px;z-index:40;width:100%;box-shadow:0 2px 10px rgba(0,0,0,.12)}
+  /* تسلسل واضح داخل بطاقات الجداول */
+  table.cards-sm td:first-of-type{display:block;font-weight:700;font-size:15px;color:var(--teal-dark);padding:10px 14px 2px}
+  table.cards-sm td:first-of-type::before{display:none}
+  table.cards-sm td{padding:5px 14px}
   .bottombar a.active{color:var(--teal-dark,#0b6b63);font-weight:700}
   .bottombar a.active .ic{transform:scale(1.08)}
   .bottombar .bdot{position:absolute;top:-4px;left:-8px;background:#e4572e;color:#fff;font-size:10px;font-style:normal;min-width:16px;height:16px;border-radius:8px;display:flex;align-items:center;justify-content:center;padding:0 3px}
@@ -129,7 +143,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--teal);bo
   table.cards-sm{min-width:0;font-size:14px;background:none}
   table.cards-sm tr:first-child{display:none}
   table.cards-sm tr{display:block;background:#fff;border:1px solid var(--line,#e5ecec);border-radius:12px;padding:6px 0;margin-bottom:10px;box-shadow:0 1px 2px rgba(0,0,0,.03)}
-  table.cards-sm td{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 14px;border:none;text-align:left}
+  table.cards-sm td{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:5px 14px;border:none;text-align:left}
   table.cards-sm td::before{content:attr(data-label);font-weight:600;color:#6b7f80;flex-shrink:0}
   table.cards-sm td:empty::before{display:none}
   table.cards-sm td[data-label=""]{justify-content:flex-end}

@@ -1,5 +1,8 @@
 <%- include('../partials/top', {title, nav:'leads'}) %>
+<% const hasFilters = ['q','status','source','assigned','followup'].some(k => query[k]); %>
 <div class="card">
+  <details class="filters" data-active="<%= hasFilters?'1':'0' %>" open>
+  <summary><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16l-6.5 7.5V19l-3 1.5v-8L4 5z"/></svg> بحث وتصفية</summary>
   <div class="flex between" style="margin-bottom:12px">
     <form method="get" class="flex" style="gap:8px;align-items:end">
       <div><label>بحث</label><input name="q" value="<%= query.q || '' %>" placeholder="اسم أو هاتف"></div>
@@ -16,6 +19,7 @@
     </form>
     <% if (can('leads.create')) { %><a class="btn orange" href="/leads/new">+ عميل جديد</a><% } %>
   </div>
+  </details>
   <table>
     <tr><th>العميل</th><th>الهاتف</th><th>الكورس</th><th>المصدر</th><th>الحالة</th><th>اهتمام</th><th>المسند إليه</th><th>المتابعة القادمة</th><th></th></tr>
     <% rows.forEach(l => { %>
