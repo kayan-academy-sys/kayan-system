@@ -30,7 +30,14 @@
     <table>
       <tr><th>الكورس</th><th>المجموعة</th><th>الحالة</th></tr>
       <% enrollments.forEach(e => { %>
-      <tr><td><%= e.course_name %></td><td><%= e.group_name || 'لم تُحدد بعد' %></td>
+      <tr><td><%= e.course_name %></td><td><%= e.group_name || 'لم تُحدد بعد' %>
+      <% if (canManageGroups && e.status==='active') { const gl = groupsByCourse[e.course_id] || []; if (gl.length) { %>
+        <form method="post" action="/orders/<%= order.id %>/enrollments/<%= e.id %>/group" class="form-row" style="margin-top:6px">
+          <input type="hidden" name="_csrf" value="<%= csrf %>">
+          <select name="group_id"><% gl.forEach(g => { %><option value="<%= g.id %>" <%= e.group_id===g.id?'selected':'' %>><%= g.name %> (متاح <%= g.free %>)</option><% }) %></select>
+          <button class="btn sm"><%= e.group_id ? 'تغيير المجموعة' : 'تحديد المجموعة' %></button>
+        </form>
+      <% } else { %><div class="muted" style="margin-top:6px">لا توجد مجموعة متاحة لهذا الكورس حاليًا.</div><% } } %></td>
       <td><span class="badge <%= e.status==='active'?'teal':e.status==='completed'?'green':'red' %>"><%= ({active:'نشط',completed:'مكتمل',cancelled:'ملغي'})[e.status] %></span></td></tr>
       <% }) %>
     </table>
@@ -38,7 +45,8 @@
 </div>
 <% if (plan) { %>
 <div class="card">
-  <h2>خطة التقسيط: مقدم <%= Number(plan.down_payment).toLocaleString('ar-EG') %> + <%= plan.count %> أقساط</h2>
+  <h2>خطة التقسيط (مخطط السداد): مقدم <%= Number(plan.down_payment).toLocaleString('ar-EG') %> + <%= plan.count %> أقساط</h2>
+  <p class="muted">المقدم مبلغ مخطَّط عند التعاقد وليس إثبات استلام؛ يصبح محصَّلًا فقط عند تسجيله كدفعة فعلية في قسم المدفوعات أعلاه.</p>
   <table>
     <tr><th>القسط</th><th>القيمة</th><th>الاستحقاق</th><th>الاستحقاق الأصلي</th><th>المدفوع</th><th>الحالة</th></tr>
     <% installments.forEach(i => { const isLate = i.status==='pending' && new Date(i.due_date) < new Date(); %>

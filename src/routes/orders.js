@@ -166,7 +166,32 @@ router.get('/:id', async (req, res) => {
   }
   const paid = payments.filter(p => p.status === 'active').reduce((s, p) => s + parseFloat(p.amount), 0);
   const accounts = (await q(`SELECT * FROM financial_accounts WHERE active=TRUE ORDER BY id`)).rows;
-  res.render('orders/detail', { title: 'حجز #' + order.id, nav: 'orders', order, enrollments, payments, plan, installments, paid, remaining: parseFloat(order.total_price) - paid, accounts, canPay: can(req.user.role, 'payments.create'), canCancel: can(req.user.role, 'orders.cancel') });
+  const canManageGroups = can(req.user.role, 'groups.manage') && order.status === 'approved';
+  const groupsByCourse = {};
+  if (canManageGroups) {
+    const gs = (await q(`SELECT g.id, g.name, g.course_id, g.capacity,
+      (SELECT count(*) FROM enrollments e WHERE e.group_id=g.id AND e.status='active') AS booked
+      FROM groups g WHERE g.status IN ('open','nearly_full') ORDER BY g.start_date`)).rows;
+    gs.forEach(g => { (groupsByCourse[g.course_id] = groupsByCourse[g.course_id] || []).push({ id: g.id, name: g.name, free: g.capacity - Number(g.booked) }); });
+  }
+  res.render('orders/detail', { title: 'حجز #' + order.id, nav: 'orders', order, enrollments, payments, plan, installments, paid, remaining: parseFloat(order.total_price) - paid, accounts, canPay: can(req.user.role, 'payments.create'), canCancel: can(req.user.role, 'orders.cancel'), canManageGroups, groupsByCourse });
+});
+
+// تحديد/تغيير مجموعة تسجيل بعد الحجز (صلاحية إدارة المجموعات + فحص السعة)
+router.post('/:id/enrollments/:eid/group', requireCap('groups.manage'), async (req, res) => {
+  const order = (await q('SELECT * FROM sales_orders WHERE id=$1', [req.params.id])).rows[0];
+  if (!order) return res.status(404).render('error', { title: 'غير موجود', message: 'الحجز غير موجود.' });
+  if (order.status !== 'approved') return res.status(400).render('error', { title: 'غير ممكن', message: 'لا يمكن تحديد المجموعة إلا لحجز معتمد.' });
+  const e = (await q(`SELECT * FROM enrollments WHERE id=$1 AND order_id=$2 AND status='active'`, [req.params.eid, order.id])).rows[0];
+  if (!e) return res.status(404).render('error', { title: 'غير موجود', message: 'التسجيل غير موجود أو غير نشط.' });
+  const gid = parseInt(req.body.group_id, 10);
+  const g = (await q(`SELECT * FROM groups WHERE id=$1 AND status IN ('open','nearly_full')`, [gid])).rows[0];
+  if (!g || g.course_id !== e.course_id) return res.status(400).render('error', { title: 'غير مناسبة', message: 'المجموعة المختارة غير متاحة لهذا الكورس.' });
+  const cnt = (await q(`SELECT count(*) AS n FROM enrollments WHERE group_id=$1 AND status='active' AND id!=$2`, [g.id, e.id])).rows[0].n;
+  if (parseInt(cnt, 10) >= g.capacity) return res.status(409).render('error', { title: 'مكتملة', message: 'المجموعة مكتملة العدد.' });
+  await q('UPDATE enrollments SET group_id=$1 WHERE id=$2', [g.id, e.id]);
+  await audit(req, 'enrollment_group_assigned', 'enrollment', e.id, { order_id: order.id, group_id: g.id });
+  res.redirect('/orders/' + order.id);
 });
 
 // إلغاء الحجز (صلاحية خاصة + سبب + سجل مراجعة)
