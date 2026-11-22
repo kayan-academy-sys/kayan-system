@@ -45,6 +45,45 @@ router.post('/closings', requireCap('closings.manage'), async (req, res) => {
   res.redirect('/accounting');
 });
 
+// حساب المحاضرين (قراءة فقط — طريقة احتساب المستحقات لم تُعتمد بعد)
+router.get('/trainers', async (req, res) => {
+  const { rows } = await q(`SELECT t.id AS trainer_id, t.name AS trainer_name, t.status AS trainer_status,
+      g.id AS group_id, g.name AS group_name, c.name AS course_name,
+      s.id AS session_id, s.session_date, s.start_time, s.end_time, s.status AS session_status
+    FROM trainers t
+    LEFT JOIN groups g ON g.trainer_id = t.id
+    LEFT JOIN courses c ON c.id = g.course_id
+    LEFT JOIN sessions s ON s.group_id = g.id
+    ORDER BY t.id, g.id NULLS LAST, s.session_date NULLS LAST, s.start_time NULLS LAST`);
+  const trainers = {};
+  for (const r of rows) {
+    if (!trainers[r.trainer_id]) trainers[r.trainer_id] = { id: r.trainer_id, name: r.trainer_name, status: r.trainer_status, groups: {}, doneCount: 0, doneMinutes: 0, monthCount: 0, monthMinutes: 0, nextSession: null };
+    const T = trainers[r.trainer_id];
+    if (!r.group_id) continue;
+    if (!T.groups[r.group_id]) T.groups[r.group_id] = { id: r.group_id, name: r.group_name, course: r.course_name, sessions: [] };
+    if (!r.session_id) continue;
+    T.groups[r.group_id].sessions.push(r);
+    if (r.session_status === 'done') {
+      T.doneCount++;
+      let mins = 0;
+      if (r.start_time && r.end_time) {
+        const [h1,m1] = String(r.start_time).split(':').map(Number);
+        const [h2,m2] = String(r.end_time).split(':').map(Number);
+        mins = Math.max(0, (h2*60+m2) - (h1*60+m1));
+      }
+      T.doneMinutes += mins;
+      const d = new Date(r.session_date);
+      const now = new Date();
+      if (d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth()) { T.monthCount++; T.monthMinutes += mins; }
+    } else if (r.session_status === 'scheduled') {
+      if (!T.nextSession || new Date(r.session_date) < new Date(T.nextSession.session_date)) T.nextSession = r;
+    }
+  }
+  const list = Object.values(trainers).map(T => ({ ...T, groups: Object.values(T.groups) }));
+  const totals = list.reduce((a, T) => ({ done: a.done + T.doneCount, mins: a.mins + T.doneMinutes, mDone: a.mDone + T.monthCount, mMins: a.mMins + T.monthMinutes }), { done: 0, mins: 0, mDone: 0, mMins: 0 });
+  res.render('accounting/trainers', { title: 'حساب المحاضرين', nav: 'trainer-accounts', list, totals });
+});
+
 // المدفوعات
 router.get('/payments', async (req, res) => {
   const { rows } = await q(`SELECT p.*, c.name AS customer_name, c.phone AS customer_phone, a.name AS account_name, u.name AS received_by_name, v.name AS voided_by_name

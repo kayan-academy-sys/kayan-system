@@ -1,0 +1,37 @@
+<%- include('../partials/top', {title, nav:'trainer-accounts'}) %>
+<div class="alert info">هذه الصفحة تعرض سجل المحاضرات الفعلية لكل محاضر (قراءة فقط). طريقة احتساب مستحقات المحاضرين لم تُعتمد بعد — ستُضاف خانة المستحقات هنا بعد اعتماد قاعدة الحساب.</div>
+<div class="grid c3">
+  <div class="stat"><div class="num"><%= list.filter(t=>t.status==='active').length %></div><div class="lbl">محاضرون نشطون</div></div>
+  <div class="stat"><div class="num"><%= totals.mDone %></div><div class="lbl">محاضرات تمت هذا الشهر</div></div>
+  <div class="stat orange"><div class="num"><%= (totals.mMins/60).toLocaleString('ar-EG',{maximumFractionDigits:1}) %></div><div class="lbl">ساعات تدريس هذا الشهر</div></div>
+</div>
+<% list.forEach(T => { %>
+<div class="card">
+  <h2><%= T.name %> <% if (T.status!=='active') { %><span class="badge gray">غير نشط</span><% } %></h2>
+  <div class="grid c3" style="margin-bottom:12px">
+    <div class="stat"><div class="num"><%= T.doneCount %></div><div class="lbl">محاضرات تمت (إجمالي)</div></div>
+    <div class="stat"><div class="num"><%= (T.doneMinutes/60).toLocaleString('ar-EG',{maximumFractionDigits:1}) %></div><div class="lbl">ساعات (إجمالي)</div></div>
+    <div class="stat"><div class="num"><%= T.nextSession ? new Date(T.nextSession.session_date).toLocaleDateString('ar-EG') : '—' %></div><div class="lbl">أقرب محاضرة قادمة</div></div>
+  </div>
+  <% if (!T.groups.length) { %><p class="muted">لا توجد مجموعات مرتبطة بهذا المحاضر.</p><% } %>
+  <% T.groups.forEach(G => { %>
+    <h3 style="font-size:14.5px;color:var(--teal-dark);margin:10px 0 6px"><%= G.name %> — <%= G.course %></h3>
+    <% if (!G.sessions.length) { %><p class="muted">لا محاضرات مسجلة لهذه المجموعة بعد.</p><% } else { %>
+    <table>
+      <tr><th>التاريخ</th><th>من</th><th>إلى</th><th>المدة (دقيقة)</th><th>الحالة</th></tr>
+      <% G.sessions.forEach(S => { let mins='—'; if (S.start_time && S.end_time) { const [h1,m1]=String(S.start_time).split(':').map(Number); const [h2,m2]=String(S.end_time).split(':').map(Number); mins=Math.max(0,(h2*60+m2)-(h1*60+m1)); } %>
+      <tr>
+        <td><%= new Date(S.session_date).toLocaleDateString('ar-EG') %></td>
+        <td><%= S.start_time ? String(S.start_time).slice(0,5) : '—' %></td>
+        <td><%= S.end_time ? String(S.end_time).slice(0,5) : '—' %></td>
+        <td><%= mins %></td>
+        <td><span class="badge <%= S.session_status==='done'?'green':S.session_status==='cancelled'?'red':S.session_status==='postponed'?'orange':'teal' %>"><%= {done:'تمت',scheduled:'مجدولة',cancelled:'ملغاة',postponed:'مؤجلة'}[S.session_status] || S.session_status %></span></td>
+      </tr>
+      <% }) %>
+    </table>
+    <% } %>
+  <% }) %>
+</div>
+<% }) %>
+<% if (!list.length) { %><div class="card"><p class="muted">لا يوجد محاضرون مسجلون بعد.</p></div><% } %>
+<%- include('../partials/bottom') %>
