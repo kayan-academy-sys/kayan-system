@@ -15,5 +15,6 @@ module.exports = {
   metaPhoneNumberId: process.env.META_PHONE_NUMBER_ID || '',
   aiApiKey: process.env.AI_API_KEY || '',
   aiApiUrl: process.env.AI_API_URL || '',
-  env: process.env.NODE_ENV || 'development'
+  env: process.env.NODE_ENV || 'development',
+  assetVersion: process.env.ASSET_VERSION || '3'
 };
