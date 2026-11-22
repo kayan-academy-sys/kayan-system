@@ -120,7 +120,7 @@ details.filters>summary{display:none}
   .topbar h1{font-size:17px;flex:1}
   .content{padding:14px 12px}
   .card{padding:14px;margin-bottom:14px;overflow-x:auto}
-  table{font-size:13px;min-width:520px}
+  table{font-size:13px}
   th,td{padding:7px 8px}
   .grid.c2{grid-template-columns:1fr}
   .grid.c4{grid-template-columns:repeat(2,1fr);gap:10px}
