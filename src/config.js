@@ -10,6 +10,9 @@ module.exports = {
   cronSecret: process.env.CRON_SECRET || '',
   whatsappAdapter: process.env.WHATSAPP_ADAPTER || 'mock',
   whatsappWebhookSecret: process.env.WHATSAPP_WEBHOOK_SECRET || '',
+  metaVerifyToken: process.env.META_VERIFY_TOKEN || '',
+  metaAppSecret: process.env.META_APP_SECRET || '',
+  metaPhoneNumberId: process.env.META_PHONE_NUMBER_ID || '',
   aiApiKey: process.env.AI_API_KEY || '',
   aiApiUrl: process.env.AI_API_URL || '',
   env: process.env.NODE_ENV || 'development'

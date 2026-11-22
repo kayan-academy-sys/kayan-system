@@ -11,7 +11,7 @@ app.set('trust proxy', true);
 app.disable('x-powered-by');
 
 app.use(express.urlencoded({ extended: false, limit: '1mb' }));
-app.use(express.json({ limit: '1mb' }));
+app.use(express.json({ limit: '1mb', verify: (req, res, buf) => { req.rawBody = buf; } }));
 app.use(cookieSession({
   name: 'kayan_sid',
   keys: [config.sessionSecret],
