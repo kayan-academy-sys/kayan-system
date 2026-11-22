@@ -5,6 +5,7 @@
 
 [functions]
   node_bundler = "esbuild"
+  external_node_modules = ["ejs", "pg"]
   included_files = ["src/views/**", "src/public/**", "migrations/**"]
 
 # Static assets from the publish dir (CDN), everything else to the function.
