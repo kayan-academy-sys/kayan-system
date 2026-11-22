@@ -82,6 +82,9 @@ router.get('/sessions/:id/attendance', requireCap('attendance.record', 'attendan
 router.post('/sessions/:id/attendance', requireCap('attendance.record'), async (req, res) => {
   const s = (await q('SELECT * FROM sessions WHERE id=$1', [req.params.id])).rows[0];
   if (!s) return res.status(404).render('error', { title: 'غير موجودة', message: 'المحاضرة غير موجودة.' });
+  // لا يُسجَّل حضور لمحاضرة لم تبدأ بعد بتوقيت القاهرة — التسجيل أثناء المحاضرة أو بعدها فقط.
+  const started = (await q(`SELECT (session_date + COALESCE(start_time, '00:00'::time)) AT TIME ZONE 'Africa/Cairo' <= now() AS ok FROM sessions WHERE id=$1`, [s.id])).rows[0].ok;
+  if (!started) return res.status(400).render('error', { title: 'لم تبدأ بعد', message: 'لا يمكن تسجيل الحضور قبل بداية المحاضرة.' });
   const valid = ['present','absent','late','excused'];
   const entries = Object.entries(req.body).filter(([k]) => k.startsWith('att_'));
   for (const [k, status] of entries) {

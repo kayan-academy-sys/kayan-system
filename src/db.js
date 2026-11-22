@@ -5,6 +5,9 @@ const pool = new Pool({
   connectionString: config.databaseUrl,
   ssl: config.dbSsl ? { rejectUnauthorized: false } : false,
   max: 10,
+  // توقيت الاتصال: القاهرة — حتى تكون current_date وnow() وتحويلات ::date بحدود يوم القاهرة،
+  // لا يوم UTC (كان يبدّل «تحصيل اليوم» و«محاضرات اليوم» منتصف الليل بتوقيت القاهرة بشكل خاطئ).
+  options: "-c timezone=Africa/Cairo",
   // مهلة إغلاق اتصالات الخمول: على الخطة المجانية لـ Railway تنام الخدمة بعد خمول خارجي،
   // واتصال مفتوح يُبقيها مستيقظة. الافتراضي يظل سلوك pg القياسي ما لم تُضبط POOL_IDLE_MS.
   idleTimeoutMillis: Number(process.env.POOL_IDLE_MS || 30000)
