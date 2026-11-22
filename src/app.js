@@ -30,6 +30,14 @@ app.use((req, res, next) => {
 });
 
 app.use('/static', express.static(path.join(__dirname, 'public'), { maxAge: '7d' }));
+
+// ملفات PWA في الجذر: الـ Service Worker يحتاج نطاق / ليعمل على كل الصفحات
+app.get('/sw.js', (req, res) => {
+  res.set('Cache-Control', 'no-cache');
+  res.set('Service-Worker-Allowed', '/');
+  res.type('application/javascript').sendFile(path.join(__dirname, 'public', 'sw.js'));
+});
+app.get('/manifest.webmanifest', (req, res) => res.redirect('/static/manifest.webmanifest'));
 app.use(loadUser);
 
 // Webhook واتساب ونقطة cron لا يحتاجان CSRF (محميان بأسرار خاصة)
