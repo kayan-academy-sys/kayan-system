@@ -82,4 +82,34 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--teal);bo
 .chat-msg{max-width:80%;padding:9px 13px;border-radius:12px;font-size:14px;line-height:1.7}
 .chat-msg.me{background:var(--teal);color:#fff;align-self:flex-start;border-bottom-right-radius:3px}
 .chat-msg.bot{background:var(--teal-050);border:1px solid var(--teal-100);align-self:flex-end;border-bottom-left-radius:3px;white-space:pre-line}
-@media(max-width:860px){.sidebar{width:64px}.sidebar .brand b,.sidebar nav a span,.sidebar .who .details,.sidebar nav .section{display:none}.sidebar nav a{justify-content:center;padding:10px}}
+.burger{display:none;background:none;border:none;font-size:22px;color:var(--teal-dark);cursor:pointer;padding:6px 8px;border-radius:8px;line-height:1}
+.burger:hover{background:var(--teal-050)}
+.nav-overlay{display:none;position:fixed;inset:0;background:rgba(0,40,45,.45);z-index:55}
+
+@media(max-width:860px){
+  .burger{display:block}
+  .sidebar{position:fixed;top:0;right:0;width:250px;height:100dvh;z-index:60;transform:translateX(100%);transition:transform .22s ease;box-shadow:-8px 0 24px rgba(0,0,0,.18)}
+  body.nav-open .sidebar{transform:translateX(0)}
+  body.nav-open .nav-overlay{display:block}
+  .topbar{padding:8px 12px;gap:8px}
+  .topbar h1{font-size:17px;flex:1}
+  .content{padding:14px 12px}
+  .card{padding:14px;margin-bottom:14px;overflow-x:auto}
+  table{font-size:13px;min-width:520px}
+  th,td{padding:7px 8px}
+  .grid.c2{grid-template-columns:1fr}
+  .grid.c4{grid-template-columns:repeat(2,1fr);gap:10px}
+  .stat{padding:12px 8px}
+  .stat .num{font-size:21px}
+  .stat .lbl{font-size:12px}
+  input,select,textarea{font-size:16px;min-height:42px}
+  .btn{min-height:42px;display:inline-flex;align-items:center;justify-content:center}
+  .btn.sm{min-height:34px;padding:6px 12px}
+  .tabs{flex-wrap:nowrap;overflow-x:auto;padding-bottom:4px}
+  .tabs a{white-space:nowrap}
+  .form-row{grid-template-columns:1fr}
+  .chat-box{height:55dvh}
+  .chat-msg{max-width:92%}
+  .flex{gap:8px}
+  .auth-card{padding:24px 18px}
+}

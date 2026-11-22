@@ -3,10 +3,20 @@
   </div>
 </div>
 <% } %>
+<div class="nav-overlay" id="navOverlay"></div>
 <script>
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
 }
+(function () {
+  var t = document.getElementById('navToggle');
+  var o = document.getElementById('navOverlay');
+  if (t) t.addEventListener('click', function () { document.body.classList.toggle('nav-open'); });
+  if (o) o.addEventListener('click', function () { document.body.classList.remove('nav-open'); });
+  document.querySelectorAll('.sidebar nav a').forEach(function (a) {
+    a.addEventListener('click', function () { document.body.classList.remove('nav-open'); });
+  });
+})();
 </script>
 </body>
 </html>
