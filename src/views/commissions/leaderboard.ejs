@@ -14,8 +14,8 @@
   <% if (!rows.length) { %>
     <p class="muted">لا يوجد موظفو مبيعات نشطون بعد.</p>
   <% } else { %>
-  <div class="table-wrap">
-    <table>
+  
+    <table class="mt">
       <thead>
         <tr>
           <th>#</th>
@@ -46,7 +46,6 @@
         <% }) %>
       </tbody>
     </table>
-  </div>
   <% } %>
 </div>
 <%- include('../partials/bottom') %>
