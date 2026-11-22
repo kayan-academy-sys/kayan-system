@@ -112,4 +112,25 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--teal);bo
   .chat-msg{max-width:92%}
   .flex{gap:8px}
   .auth-card{padding:24px 18px}
+
+  /* بطاقات بدل الجداول على الموبايل */
+  .card{overflow-x:visible}
+  table.cards-sm{min-width:0;font-size:14px;background:none}
+  table.cards-sm tr:first-child{display:none}
+  table.cards-sm tr{display:block;background:#fff;border:1px solid var(--line,#e5ecec);border-radius:12px;padding:6px 0;margin-bottom:10px;box-shadow:0 1px 2px rgba(0,0,0,.03)}
+  table.cards-sm td{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 14px;border:none;text-align:left}
+  table.cards-sm td::before{content:attr(data-label);font-weight:600;color:#6b7f80;flex-shrink:0}
+  table.cards-sm td:empty::before{display:none}
+  table.cards-sm td[data-label=""]{justify-content:flex-end}
+  table.cards-sm td[data-label=""]::before{display:none}
+  table.cards-sm td[colspan]{display:block;text-align:center;padding:18px}
+  table.cards-sm td .btn{flex:1}
+  /* نماذج الفلاتر: عمود واحد مرتب */
+  .card form.flex{flex-direction:column;align-items:stretch;width:100%}
+  .card form.flex>div{width:100%}
+  .card form.flex>div label:has(input[type=checkbox]){display:flex;align-items:center;gap:8px}
+  .card form.flex>div label:has(input[type=checkbox]) input{width:auto;min-height:0}
+  .card form.flex>div label{display:block;margin-bottom:4px;font-weight:600}
+  .card form.flex>div input,.card form.flex>div select{width:100%}
+  .card form.flex .btn{width:100%}
 }

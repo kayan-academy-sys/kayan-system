@@ -16,6 +16,20 @@ if ('serviceWorker' in navigator) {
   document.querySelectorAll('.sidebar nav a').forEach(function (a) {
     a.addEventListener('click', function () { document.body.classList.remove('nav-open'); });
   });
+  // تحويل الجداول إلى بطاقات على الشاشات الصغيرة: نسخ عناوين الأعمدة إلى data-label
+  document.querySelectorAll('table').forEach(function (tb) {
+    if (tb.classList.contains('no-cards')) return;
+    var headCells = tb.querySelectorAll('tr:first-child th');
+    if (headCells.length < 3) return;
+    var labels = [];
+    headCells.forEach(function (th) { labels.push(th.textContent.trim()); });
+    var rows = tb.querySelectorAll('tr');
+    for (var i = 1; i < rows.length; i++) {
+      var tds = rows[i].querySelectorAll('td');
+      tds.forEach(function (td, j) { td.setAttribute('data-label', labels[j] || ''); });
+    }
+    tb.classList.add('cards-sm');
+  });
 })();
 </script>
 </body>
