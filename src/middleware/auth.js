@@ -51,9 +51,16 @@ function csrfCheck(req, res, next) {
 // حد بسيط لمحاولات الدخول
 // DB-backed: atomic upsert, consistent across serverless instances and restarts.
 // Same policy as before: 10 attempts per 10 minutes per IP+email; the 11th is blocked.
+// Client IP: on Netlify only X-Nf-Client-Connection-Ip is edge-set and trustworthy
+// (Netlify support: "we make no guarantees on anything except X-Nf-Client-Connection-Ip");
+// elsewhere (Render) req.ip is direct. X-Forwarded-For is never trusted here.
+function clientKey(req) {
+  const ip = req.get('x-nf-client-connection-ip') || req.ip || 'unknown';
+  return ip + '|' + (req.body.email || '');
+}
 async function loginRateLimit(req, res, next) {
   try {
-    const key = req.ip + '|' + (req.body.email || '');
+    const key = clientKey(req);
     const { rows } = await q(
       `INSERT INTO login_attempts (key, count, reset_at)
        VALUES ($1, 1, now() + interval '10 minutes')
