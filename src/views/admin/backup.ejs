@@ -25,16 +25,13 @@
   <% } else { %>
   
     <table class="mt">
-      <thead>
-        <tr>
+    <tr>
           <th>التاريخ والوقت</th>
           <th>الملف</th>
           <th>الحجم</th>
           <th>اختبار الاسترجاع</th>
         </tr>
-      </thead>
-      <tbody>
-        <% backups.forEach(b => { %>
+    <% backups.forEach(b => { %>
         <tr>
           <td><%= new Date(b.created_at).toLocaleString('ar-EG', { timeZone: 'Africa/Cairo' }) %></td>
           <td dir="ltr" class="muted"><%= b.file_name %></td>
@@ -42,7 +39,6 @@
           <td><span class="badge <%= b.restore_test ? 'green' : 'red' %>"><%= b.restore_test ? 'ناجح' : 'فشل' %></span></td>
         </tr>
         <% }) %>
-      </tbody>
     </table>
   <% } %>
 </div>

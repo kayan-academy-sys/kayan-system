@@ -16,8 +16,7 @@
   <% } else { %>
   
     <table class="mt">
-      <thead>
-        <tr>
+    <tr>
           <th>#</th>
           <th>الاسم</th>
           <th>الدور</th>
@@ -27,9 +26,7 @@
           <th>التحصيل</th>
           <th>عمولة تقديرية</th>
         </tr>
-      </thead>
-      <tbody>
-        <% rows.forEach((r, i) => { %>
+    <% rows.forEach((r, i) => { %>
         <tr>
           <td><b><%= i + 1 %></b></td>
           <td><%= r.name %></td>
@@ -44,7 +41,6 @@
           </td>
         </tr>
         <% }) %>
-      </tbody>
     </table>
   <% } %>
 </div>
