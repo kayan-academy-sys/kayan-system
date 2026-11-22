@@ -2,71 +2,67 @@
 <% const STATUS = { pending: 'معلّقة', approved: 'معتمدة', paid: 'مدفوعة', cancelled: 'ملغاة' }; %>
 <div class="card">
   <h2>قاعدة احتساب العمولة</h2>
-  <% if (rule) { %>
-    <p class="muted">القاعدة الحالية: <b><%= basisLabels[rule.basis] %></b><% if (rule.basis === 'fixed') { %> — <%= Number(rule.fixed_amount).toLocaleString('ar-EG') %> ج.م<% } else { %> — <%= rule.percent %>٪<% } %></p>
+  <% if (rule.method) { %>
+    <p class="muted">تارجت شهري <b><%= Number(rule.target).toLocaleString('ar-EG') %> ج.م</b> — الاستحقاق عند فواتير ≥ <%= rule.threshold_pct %>٪ من التارجت — <%= rule.rate_in %>٪ على التحصيل و<%= rule.rate_over %>٪ على ما فوق التارجت (يُحدَّد من فواتير الشهر). طريقة التوزيع: <b><%= methodLabels[rule.method] %></b></p>
   <% } else { %>
-    <p class="alert err">لم تُحدَّد قاعدة بعد. اختر طريقة الاحتساب المعتمدة لديكم ثم اضغط حفظ.</p>
+    <p class="alert err">لم تُحفَظ القاعدة بعد. القيم المعروضة هي قواعد كيان الحالية؛ راجعها واضغط حفظ.</p>
   <% } %>
   <% if (canManage) { %>
   <form method="post" action="/accounting/commissions/rule" class="form mt">
     <input type="hidden" name="_csrf" value="<%= csrf %>">
-    <label>طريقة الاحتساب
-      <select name="basis" required>
-        <% Object.keys(basisLabels).forEach(k => { %>
-          <option value="<%= k %>" <%= rawRule.basis === k ? 'selected' : '' %>><%= basisLabels[k] %></option>
+    <label>التارجت الشهري الافتراضي (ج.م)
+      <input type="number" name="target" step="1" min="0" value="<%= rule.target %>" inputmode="decimal" required>
+    </label>
+    <label>نسبة الاستحقاق من التارجت (٪)
+      <input type="number" name="threshold_pct" step="1" min="0" max="100" value="<%= rule.threshold_pct %>" inputmode="decimal" required>
+    </label>
+    <label>النسبة داخل التارجت (٪)
+      <input type="number" name="rate_in" step="0.1" min="0" value="<%= rule.rate_in %>" inputmode="decimal" required>
+    </label>
+    <label>النسبة فوق التارجت (٪)
+      <input type="number" name="rate_over" step="0.1" min="0" value="<%= rule.rate_over %>" inputmode="decimal" required>
+    </label>
+    <label>طريقة توزيع النسبة
+      <select name="method" required>
+        <% Object.keys(methodLabels).forEach(k => { %>
+          <option value="<%= k %>" <%= (rule.method || 'invoice_weighted') === k ? 'selected' : '' %>><%= methodLabels[k] %></option>
         <% }) %>
       </select>
     </label>
-    <label>النسبة ٪ (للنسبتين)
-      <input type="number" name="percent" step="0.01" min="0" max="100" value="<%= rawRule.percent || '' %>" inputmode="decimal">
-    </label>
-    <label>المبلغ الثابت ج.م (للمبلغ الثابت)
-      <input type="number" name="fixed_amount" step="0.01" min="0" value="<%= rawRule.fixed_amount || '' %>" inputmode="decimal">
-    </label>
     <div class="actions"><button class="btn">حفظ القاعدة</button></div>
-  </form>
-  <form method="post" action="/accounting/commissions/generate" class="mt" onsubmit="return confirm('احتساب/تحديث العمولات المعلّقة لكل الحجوزات المعتمدة؟')">
-    <input type="hidden" name="_csrf" value="<%= csrf %>">
-    <button class="btn secondary" <%= rule ? '' : 'disabled' %>>احتساب العمولات الآن</button>
-    <p class="muted">يحتسب عمولة لكل حجز معتمد منسوب لموظف مبيعات، ويحدّث المعلّق منها فقط؛ المعتمدة والمدفوعة لا تتغير.</p>
   </form>
   <% } %>
 </div>
 
 <div class="card">
-  <h2>العمولات</h2>
+  <h2>احتساب شهر</h2>
+  <% if (canManage) { %>
+  <form method="post" action="/accounting/commissions/generate" class="form" onsubmit="return confirm('احتساب/تحديث عمولات هذا الشهر لكل موظفي المبيعات؟ المعتمدة والمدفوعة لا تتغير.')">
+    <input type="hidden" name="_csrf" value="<%= csrf %>">
+    <label>الشهر
+      <input type="month" name="month" value="<%= month %>" required>
+    </label>
+    <div class="actions"><button class="btn secondary" <%= rule.method ? '' : 'disabled' %>>احتساب العمولات</button></div>
+    <p class="muted">يحسب لكل موظف: فواتير الشهر المنسوبة إليه، تحصيلات الشهر (بما فيها متأخرات شهور سابقة)، الاستحقاق، ثم العمولة.</p>
+  </form>
+  <% } %>
+</div>
+
+<div class="card">
+  <h2>عمولات شهر <%= month %></h2>
   <% if (saved) { %><p class="alert ok">تم الحفظ.</p><% } %>
-  <div class="grid c3 mt">
-    <div class="stat"><div class="num"><%= Number(totals.pending || 0).toLocaleString('ar-EG') %></div><div class="lbl">معلّقة</div></div>
-    <div class="stat"><div class="num"><%= Number(totals.approved || 0).toLocaleString('ar-EG') %></div><div class="lbl">معتمدة</div></div>
-    <div class="stat"><div class="num"><%= Number(totals.paid || 0).toLocaleString('ar-EG') %></div><div class="lbl">مدفوعة</div></div>
-  </div>
-  <details class="filters mt" <%= (query.user || query.status) ? 'open data-active' : '' %>>
-    <summary class="pill">بحث وتصفية</summary>
-    <form method="get" action="/accounting/commissions" class="form mt">
-      <label>الموظف
-        <select name="user">
-          <option value="">الكل</option>
-          <% salesUsers.forEach(u => { %><option value="<%= u.id %>" <%= String(query.user || '') === String(u.id) ? 'selected' : '' %>><%= u.name %></option><% }) %>
-        </select>
-      </label>
-      <label>الحالة
-        <select name="status">
-          <option value="">الكل</option>
-          <% Object.keys(STATUS).forEach(s => { %><option value="<%= s %>" <%= query.status === s ? 'selected' : '' %>><%= STATUS[s] %></option><% }) %>
-        </select>
-      </label>
-      <div class="actions"><button class="btn sm">تطبيق</button></div>
-    </form>
-  </details>
+  <form method="get" action="/accounting/commissions" class="form">
+    <label>عرض شهر <input type="month" name="month" value="<%= month %>"></label>
+    <div class="actions"><button class="btn sm">عرض</button></div>
+  </form>
   <table class="mt cards-sm">
-    <tr><th>الموظف</th><th>الحجز</th><th>العميل</th><th>الأساس</th><th>المبلغ</th><th>الحالة</th><th></th></tr>
+    <tr><th>الموظف</th><th>التارجت</th><th>فواتير الشهر</th><th>تحصيلات الشهر</th><th>العمولة</th><th>الحالة</th><th></th></tr>
     <% rows.forEach(cm => { %>
     <tr style="<%= cm.status === 'cancelled' ? 'opacity:.55' : '' %>">
       <td><b><%= cm.sales_name %></b></td>
-      <td><a href="/orders/<%= cm.order_id %>">#<%= cm.order_id %></a><br><span class="muted"><%= new Date(cm.order_at).toLocaleDateString('ar-EG') %></span></td>
-      <td><%= cm.customer_name %></td>
-      <td><%= basisLabels[cm.basis] %><br><span class="muted"><%= Number(cm.basis_amount).toLocaleString('ar-EG') %> ج.م<%= cm.rate ? ' × ' + Number(cm.rate) + '٪' : '' %></span></td>
+      <td><%= Number(cm.target).toLocaleString('ar-EG') %></td>
+      <td><%= Number(cm.invoiced).toLocaleString('ar-EG') %><% if (!cm.eligible) { %><br><span class="badge red">أقل من <%= Number(cm.target * rule.threshold_pct / 100).toLocaleString('ar-EG') %> — غير مستحق</span><% } %></td>
+      <td><%= Number(cm.collected).toLocaleString('ar-EG') %></td>
       <td><b><%= Number(cm.amount).toLocaleString('ar-EG') %></b> ج.م</td>
       <td><span class="badge <%= cm.status === 'paid' ? 'green' : (cm.status === 'cancelled' ? 'red' : 'orange') %>"><%= STATUS[cm.status] %></span>
         <% if (cm.note) { %><br><span class="muted"><%= cm.note %></span><% } %></td>
@@ -90,7 +86,24 @@
       </td>
     </tr>
     <% }) %>
-    <% if (!rows.length) { %><tr><td colspan="7" class="muted">لا توجد عمولات بعد.</td></tr><% } %>
+    <% if (!rows.length) { %><tr><td colspan="7" class="muted">لا توجد عمولات محتسبة لهذا الشهر بعد.</td></tr><% } %>
   </table>
 </div>
+
+<% if (canManage) { %>
+<div class="card">
+  <h2>تارجت فردي</h2>
+  <p class="muted">اتركه فارغًا ليستخدم الموظف التارجت الافتراضي.</p>
+  <% salesUsers.forEach(u => { %>
+  <form method="post" action="/accounting/commissions/target" class="form" style="grid-template-columns:2fr 1fr auto;align-items:end">
+    <input type="hidden" name="_csrf" value="<%= csrf %>">
+    <input type="hidden" name="user_id" value="<%= u.id %>">
+    <label><%= u.name %>
+      <input type="number" name="monthly_target" step="1" min="0" value="<%= u.monthly_target || '' %>" placeholder="<%= rule.target %>" inputmode="decimal">
+    </label>
+    <div class="actions"><button class="btn sm secondary">حفظ</button></div>
+  </form>
+  <% }) %>
+</div>
+<% } %>
 <%- include('../partials/bottom') %>

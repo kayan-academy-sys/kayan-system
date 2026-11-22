@@ -11,7 +11,7 @@ const app = require('../src/app');
 const supertest = require('supertest');
 
 async function resetDb() {
-  await q(`TRUNCATE commissions, attendance, payments, installments, installment_plans, transfers, expenses, enrollments, sales_orders,
+  await q(`TRUNCATE commission_months, attendance, payments, installments, installment_plans, transfers, expenses, enrollments, sales_orders,
     package_courses, packages, sessions, groups, trainers, lead_activities, lead_assignments, staff_presence, leads,
     customers, notifications, job_runs, user_add_requests, invites, audit_log, users RESTART IDENTITY CASCADE`);
 }
