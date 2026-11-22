@@ -32,6 +32,9 @@ async function answer(question, user) {
   const rc = (cap) => can(user.roles || [user.role], cap);
   const today = has('اليوم', 'النهارده');
   const finList = rc('installments.view') ? 'full' : rc('installments.view.limited') ? 'limited' : null;
+  // نطاق الرؤية: من يملك عرض الكل يرى كل شيء، وغيره يرى ما أُسند إليه أو أنشأه فقط
+  const leadScope = rc('leads.view.all') ? { cond: '', params: [] } : { cond: ' AND (l.assigned_to=$1 OR l.created_by=$1)', params: [user.id] };
+  const orderScope = rc('orders.view.all') ? { cond: '', params: [] } : { cond: ' AND o.sales_user_id=$1', params: [user.id] };
   try {
     // تحيات وأسئلة عامة
     if (has('السلام عليكم', 'اهلا', 'هاي', 'مرحبا', 'صباح الخير', 'مساء الخير', 'ازيك', 'عامل ايه', 'عامله ايه')) {
@@ -40,8 +43,8 @@ async function answer(question, user) {
     if (has('ايه الاخبار', 'ايه الجديد', 'ملخص اليوم', 'ملخص النهارده', 'احوال النهارده')) {
       const parts = [];
       if (rc('leads.view.own') || rc('leads.view.all') || rc('leads.view')) {
-        const { rows } = await q(`SELECT count(*) AS n FROM leads WHERE created_at::date=current_date`);
-        parts.push(`• عملاء جدد اليوم: ${rows[0].n}`);
+        const { rows } = await q(`SELECT count(*) AS n FROM leads l WHERE l.created_at::date=current_date${leadScope.cond}`, leadScope.params);
+        parts.push(`• عملاء جدد اليوم${rc('leads.view.all') ? '' : ' (ضمن نطاقك)'}: ${rows[0].n}`);
       }
       if (rc('groups.view') || rc('reception.view') || rc('sessions.manage')) {
         const { rows } = await q(`SELECT count(*) AS n FROM sessions WHERE session_date=current_date AND status!='cancelled'`);
@@ -140,8 +143,8 @@ async function answer(question, user) {
     // العملاء الجدد
     if (has('عميل', 'عملاء') && has('جديد', 'جدد')) {
       if (!(rc('leads.view.own') || rc('leads.view.all') || rc('leads.view'))) return NO_CAP;
-      const { rows } = await q(`SELECT count(*) FILTER (WHERE created_at::date=current_date) AS today, count(*) FILTER (WHERE created_at >= now() - interval '7 days') AS week FROM leads`);
-      return `العملاء الجدد: اليوم ${rows[0].today} — آخر ٧ أيام ${rows[0].week}.`;
+      const { rows } = await q(`SELECT count(*) FILTER (WHERE l.created_at::date=current_date) AS today, count(*) FILTER (WHERE l.created_at >= now() - interval '7 days') AS week FROM leads l WHERE TRUE${leadScope.cond}`, leadScope.params);
+      return `العملاء الجدد${rc('leads.view.all') ? '' : ' (ضمن نطاقك)'}: اليوم ${rows[0].today} — آخر ٧ أيام ${rows[0].week}.`;
     }
     // بيانات عميل برقم الهاتف
     const phoneMatch = question.match(/01[0-9]{9}/);
@@ -150,10 +153,12 @@ async function answer(question, user) {
       const { rows } = await q('SELECT * FROM customers WHERE phone=$1', [phoneMatch[0]]);
       if (!rows.length) return `لا يوجد عميل مسجل بالرقم ${phoneMatch[0]}.`;
       const c = rows[0];
-      const leads = (await q(`SELECT l.status, co.name AS course FROM leads l LEFT JOIN courses co ON co.id=l.course_id WHERE l.customer_id=$1 ORDER BY l.id DESC`, [c.id])).rows;
-      const orders = (await q(`SELECT o.id, o.total, o.status FROM sales_orders o WHERE o.customer_id=$1 ORDER BY o.id DESC`, [c.id])).rows;
-      return `العميل: ${c.name} (${c.phone})\nالفرص:\n` + (leads.map(l => `• ${l.course || 'غير محدد'} — ${l.status}`).join('\n') || 'لا توجد فرص')
-        + '\nالحجوزات:\n' + (orders.map(o => `• حجز #${o.id} — ${Number(o.total).toLocaleString('ar-EG')} ج.م — ${o.status}`).join('\n') || 'لا توجد حجوزات');
+      const seeAllLeads = rc('leads.view.all'), seeAllOrders = rc('orders.view.all');
+      const leads = (await q(`SELECT l.status, co.name AS course FROM leads l LEFT JOIN courses co ON co.id=l.course_id WHERE l.customer_id=$1${seeAllLeads ? '' : ' AND (l.assigned_to=$2 OR l.created_by=$2)'} ORDER BY l.id DESC`, seeAllLeads ? [c.id] : [c.id, user.id])).rows;
+      const orders = (await q(`SELECT o.id, o.total, o.status FROM sales_orders o WHERE o.customer_id=$1${seeAllOrders ? '' : ' AND o.sales_user_id=$2'} ORDER BY o.id DESC`, seeAllOrders ? [c.id] : [c.id, user.id])).rows;
+      const scoped = !(seeAllLeads && seeAllOrders);
+      return `العميل: ${c.name} (${c.phone})${scoped ? '\n(تُعرض بياناته ضمن نطاق صلاحياتك فقط)' : ''}\nالفرص:\n` + (leads.map(l => `• ${l.course || 'غير محدد'} — ${l.status}`).join('\n') || 'لا توجد فرص ضمن نطاقك')
+        + '\nالحجوزات:\n' + (orders.map(o => `• حجز #${o.id} — ${Number(o.total).toLocaleString('ar-EG')} ج.م — ${o.status}`).join('\n') || 'لا توجد حجوزات ضمن نطاقك');
     }
     // خطوات تنفيذ إجراء
     if (has('كيف', 'ازاي', 'طريقه')) {
