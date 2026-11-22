@@ -57,8 +57,8 @@ router.get('/trainers', async (req, res) => {
     LEFT JOIN sessions s ON s.group_id = g.id
     LEFT JOIN trainer_group_terms tm ON tm.group_id = g.id
     ORDER BY t.id, g.id NULLS LAST, s.session_date NULLS LAST, s.start_time NULLS LAST`);
-  const pays = (await q(`SELECT p.*, g.name AS group_name, u.name AS created_by_name FROM trainer_payments p
-    LEFT JOIN groups g ON g.id=p.group_id LEFT JOIN users u ON u.id=p.created_by
+  const pays = (await q(`SELECT p.*, g.name AS group_name, u.name AS created_by_name, a.name AS account_name FROM trainer_payments p
+    LEFT JOIN groups g ON g.id=p.group_id LEFT JOIN users u ON u.id=p.created_by LEFT JOIN financial_accounts a ON a.id=p.account_id
     WHERE p.status='active' ORDER BY p.created_at DESC`)).rows;
   const trainers = {};
   for (const r of rows) {
@@ -92,7 +92,8 @@ router.get('/trainers', async (req, res) => {
   const list = Object.values(trainers).map(T => ({ ...T, groups: Object.values(T.groups), balance: T.earned - T.paid }));
   const totals = list.reduce((a, T) => ({ agreed: a.agreed + T.agreedTotal, earned: a.earned + T.earned, paid: a.paid + T.paid }), { agreed: 0, earned: 0, paid: 0 });
   totals.balance = totals.earned - totals.paid;
-  res.render('accounting/trainers', { title: 'حساب المحاضرين', nav: 'trainer-accounts', list, totals, pays, canManage: can(req.user.roles, 'expenses.create'), canVoid: can(req.user.roles, 'expenses.void') });
+  const accounts = (await q('SELECT * FROM financial_accounts WHERE active=TRUE ORDER BY id')).rows;
+  res.render('accounting/trainers', { title: 'حساب المحاضرين', nav: 'trainer-accounts', list, totals, pays, accounts, canManage: can(req.user.roles, 'expenses.create'), canVoid: can(req.user.roles, 'expenses.void') });
 });
 
 // تحديد/تعديل المبلغ المتفق عليه لمجموعة
@@ -109,10 +110,13 @@ router.post('/trainers/terms', requireCap('expenses.create'), async (req, res) =
   res.redirect('/accounting/trainers');
 });
 
-// تسجيل دفعة لمحاضر (سجل منفصل — لا يخصم من الخزينة في هذه النسخة)
+// تسجيل دفعة لمحاضر — تُنشئ مصروفًا مرتبطًا في نفس المعاملة فيخصم من الحساب المختار
 router.post('/trainers/payments', requireCap('expenses.create'), async (req, res) => {
   const amount = parseFloat(req.body.amount);
-  if (!(amount > 0)) return res.status(400).render('error', { title: 'قيمة غير صالحة', message: 'قيمة الدفعة غير صالحة.' });
+  const method = req.body.method;
+  if (!(amount > 0) || !['cash','bank_transfer','instapay','wallet'].includes(method) || !req.body.account_id) {
+    return res.status(400).render('error', { title: 'بيانات غير صالحة', message: 'تأكد من المبلغ وطريقة الدفع والحساب.' });
+  }
   const t = (await q('SELECT id, name FROM trainers WHERE id=$1', [req.body.trainer_id])).rows[0];
   if (!t) return res.status(404).render('error', { title: 'غير موجود', message: 'المحاضر غير موجود.' });
   let groupId = req.body.group_id || null;
@@ -120,16 +124,34 @@ router.post('/trainers/payments', requireCap('expenses.create'), async (req, res
     const g = (await q('SELECT id, trainer_id FROM groups WHERE id=$1', [groupId])).rows[0];
     if (!g || g.trainer_id !== t.id) return res.status(400).render('error', { title: 'قيمة غير صالحة', message: 'المجموعة لا تتبع هذا المحاضر.' });
   }
-  await q('INSERT INTO trainer_payments (trainer_id, group_id, amount, method, notes, created_by) VALUES ($1,$2,$3,$4,$5,$6)',
-    [t.id, groupId, amount, req.body.method || null, req.body.notes || null, req.user.id]);
-  await audit(req, 'trainer_payment_recorded', 'trainer', t.id, { trainer: t.name, amount, group_id: groupId });
-  res.redirect('/accounting/trainers');
+  try {
+    const paymentId = await tx(async (c) => {
+      const type = (await c.query(`SELECT id FROM expense_types WHERE name='مستحقات محاضرين'`)).rows[0];
+      const exp = await c.query(`INSERT INTO expenses (type_id, amount, expense_date, account_id, recorded_by, notes) VALUES ($1,$2,current_date,$3,$4,$5) RETURNING id`,
+        [type.id, amount, req.body.account_id, req.user.id, ('دفعة محاضر: ' + t.name) + (req.body.notes ? ' — ' + req.body.notes : '')]);
+      const ins = await c.query('INSERT INTO trainer_payments (trainer_id, group_id, amount, method, account_id, expense_id, notes, created_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id',
+        [t.id, groupId, amount, method, req.body.account_id, exp.rows[0].id, req.body.notes || null, req.user.id]);
+      return ins.rows[0].id;
+    });
+    await audit(req, 'trainer_payment_recorded', 'trainer_payment', paymentId, { trainer: t.name, amount, method, account_id: req.body.account_id, group_id: groupId });
+    res.redirect('/accounting/trainers');
+  } catch (e) {
+    res.status(e.status || 500).render('error', { title: 'تعذر تسجيل الدفعة', message: e.message });
+  }
 });
 
-// إلغاء دفعة لمحاضر
+// إلغاء دفعة لمحاضر — يلغي المصروف المرتبط في نفس المعاملة
 router.post('/trainers/payments/:id/void', requireCap('expenses.void'), async (req, res) => {
-  const r = await q(`UPDATE trainer_payments SET status='void', voided_by=$1, voided_at=now() WHERE id=$2 AND status='active'`, [req.user.id, req.params.id]);
-  if (r.rowCount) await audit(req, 'trainer_payment_voided', 'trainer_payment', req.params.id, {});
+  const { reason } = req.body;
+  if (!reason) return res.status(400).render('error', { title: 'سبب مطلوب', message: 'سبب الإلغاء إلزامي ويُسجل في سجل المراجعة.' });
+  const p = (await q('SELECT * FROM trainer_payments WHERE id=$1', [req.params.id])).rows[0];
+  if (!p) return res.status(404).render('error', { title: 'غير موجودة', message: 'الدفعة غير موجودة.' });
+  if (p.status !== 'active') return res.redirect('/accounting/trainers');
+  await tx(async (c) => {
+    await c.query(`UPDATE trainer_payments SET status='void', voided_by=$1, voided_at=now() WHERE id=$2`, [req.user.id, p.id]);
+    if (p.expense_id) await c.query(`UPDATE expenses SET status='voided', void_reason=$1, voided_by=$2, voided_at=now() WHERE id=$3 AND status='active'`, [reason, req.user.id, p.expense_id]);
+  });
+  await audit(req, 'trainer_payment_voided', 'trainer_payment', p.id, { reason, amount: p.amount, expense_id: p.expense_id });
   res.redirect('/accounting/trainers');
 });
 
