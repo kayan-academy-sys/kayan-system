@@ -1,0 +1,10 @@
+{
+  "purpose": "Audit record of the single out-of-scope connectivity probe (2026-11-22 22:58:47 EET)",
+  "model": "baidu/ernie-5.5-flash-preview:free",
+  "provider": "Baidu (via OpenRouter)",
+  "prompt_sent": "رد بالعربية: ما هي عاصمة مصر؟",
+  "response_received": "عاصمة مصر هي **القاهرة**.",
+  "data_content": "generic fictional geography question, zero academy data, zero personal data",
+  "provider_terms_observed": "OpenRouter provider-logging table (fetched 22:50): Baidu Qianfan = prompts retained for unknown period, does not train",
+  "authorization_note": "NOT covered by the Gemma-specific approval; flagged by parent 23:04; no further calls"
+}
