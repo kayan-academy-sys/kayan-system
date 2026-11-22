@@ -1,9 +1,9 @@
 // مساعد كيان: مساعد بحث داخلي يجيب موظفي النظام عن أسئلة تشغيلية محددة من قاعدة البيانات مباشرة.
 // المطابقة المحلية بالكلمات المفتاحية هي الأساس، وأسئلة الموظفين العادية لا تغادر الخادم أبدًا.
-// التصنيف الخارجي عبر Cohere مقيد بوضع اختبار صريح من جهة الخادم فقط: يتطلب COHERE_API_KEY
-// وAI_EXTERNAL_TEST=synthetic-only معًا، ولا يعمل إلا لأسئلة تبدأ ببادئة الاختبار «تجربة:».
-// عندها يُرسل نص السؤال فقط بعد حجب أرقام الهواتف والأرقام الطويلة — لا تُرسل أي بيانات من قاعدة البيانات —
-// وتُبنى الإجابة محليًا من الاستعلامات نفسها. أي عطل أو غياب الإعداد: المطابقة المحلية وحدها.
+// التصنيف الخارجي عبر Cohere مقيد بوضع اختبار معزول من جهة الخادم: يتطلب COHERE_API_KEY
+// وAI_EXTERNAL_TEST=synthetic-fixtures معًا، ويعمل فقط بطلب «تجربة: <id>» حيث id رقم سؤال وهمي
+// ثابت محفوظ على الخادم. النص المُرسل للمزوّد هو ذلك النص الثابت فقط (لا يُرسل إدخال المستخدم،
+// ولا بيانات من قاعدة البيانات، ولا سجلّ المحادثة). أي عطل أو غياب الإعداد: المطابقة المحلية وحدها.
 // الإجابات مقيدة بصلاحيات الدور: لا يرى الموظف إلا ما تسمح به صلاحياته.
 const express = require('express');
 const config = require('../config');
@@ -29,12 +29,19 @@ function norm(s) {
 const CAPABILITIES = 'أقدر أجاوبك عن: الأقساط المتأخرة، الأقساط المستحقة اليوم، محاضرات اليوم، حضور اليوم، المجموعات المتاحة، تحصيل اليوم أو الأسبوع، العملاء الجدد، بيانات عميل برقم هاتفه، ملخص اليوم، وخطوات تنفيذ إجراء (حجز، تقسيط، توزيع، حضور...) — كلٌّ حسب صلاحياتك.';
 const NO_CAP = 'هذا السؤال خارج نطاق صلاحياتك في النظام. لو محتاجه فعلًا، اسأل مدير القسم المختص.';
 
-// --- التصنيف الذكي عبر Cohere: وضع اختبار صريح فقط (synthetic-only) ---
+// --- التصنيف الذكي عبر Cohere: وضع اختبار معزول بقائمة أسئلة وهمية ثابتة فقط ---
+// لا يُرسل أي نص يكتبه المستخدم إلى المزوّد أبدًا. النص الصادر هو سؤال وهمي ثابت محفوظ في الخادم
+// (test/assistant-eval-questions.json)، يُختار برقم تعريفه فقط: «تجربة: <id>».
+// يتطلب COHERE_API_KEY وAI_EXTERNAL_TEST=synthetic-fixtures معًا، وإلا لا يحدث أي اتصال خارجي.
 const LLM_KEY = process.env.COHERE_API_KEY || '';
 const LLM_MODEL = process.env.COHERE_MODEL || 'command-a-03-2025';
 const LLM_TIMEOUT_MS = 8000;
-const LLM_TEST_MODE = process.env.AI_EXTERNAL_TEST === 'synthetic-only';
-const TEST_PREFIX = 'تجربة:';
+const LLM_TEST_MODE = process.env.AI_EXTERNAL_TEST === 'synthetic-fixtures';
+let EVAL_FIXTURES = {};
+try {
+  const fxPath = require('path').join(__dirname, '..', '..', 'test', 'assistant-eval-questions.json');
+  for (const f of (JSON.parse(require('fs').readFileSync(fxPath, 'utf8')).questions || [])) EVAL_FIXTURES[`q${f.id}`] = f.q;
+} catch (e) { EVAL_FIXTURES = {}; }
 
 const INTENT_LIST = [
   ['greeting', 'تحية أو سلام فقط'],
@@ -247,12 +254,15 @@ async function answer(question, user) {
     // سؤال «كيف» العام كان يرجع قائمة القدرات مباشرة
     if (intent === 'capabilities_only') return CAPABILITIES;
 
-    // التصنيف الخارجي مقيد: لا يعمل إلا في وضع الاختبار الصريح ولأسئلة تحمل بادئة «تجربة:»
-    // حتى لا يغادر أي سؤال حقيقي لموظف الخادم. الأسئلة العادية تبقى محلية دائمًا.
-    if (intent === 'fallback' && LLM_KEY && LLM_TEST_MODE && question.startsWith(TEST_PREFIX)) {
-      const synthetic = question.slice(TEST_PREFIX.length).trim();
-      const llm = await classifyWithLLM(synthetic);
-      if (llm && handlers[llm]) intent = llm;
+    // التصنيف الخارجي مقيد بقائمة أسئلة وهمية ثابتة على الخادم: المستخدم يرسل رقم تعريف فقط،
+    // والنص المُرسل للمزوّد هو السؤال الوهمي الثابت المقابل له، وليس أي إدخال من المتصل.
+    // أي نص آخر (مسبوقًا بـ«تجربة:» أو لا) يبقى محليًا بالكامل ولا يحدث أي اتصال خارجي.
+    if (intent === 'fallback' && LLM_KEY && LLM_TEST_MODE) {
+      const fx = question.match(/^تجربة:\s*(q\d{1,2})$/);
+      if (fx && EVAL_FIXTURES[fx[1]]) {
+        const llm = await classifyWithLLM(EVAL_FIXTURES[fx[1]]);
+        if (llm && handlers[llm]) intent = llm;
+      }
     }
     return await handlers[intent]();
   } catch (e) {
