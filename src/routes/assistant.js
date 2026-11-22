@@ -234,16 +234,18 @@ async function answer(question, user) {
     // المطابقة المحلية أولًا (نفس السلوك القائم تمامًا)
     let intent;
     if (has('السلام عليكم', 'اهلا', 'هاي', 'مرحبا', 'صباح الخير', 'مساء الخير', 'ازيك', 'عامل ايه', 'عامله ايه')) intent = 'greeting';
-    else if (has('ايه الاخبار', 'ايه الجديد', 'ملخص اليوم', 'ملخص النهارده', 'احوال النهارده')) intent = 'daily_summary';
+    else if (has('ايه الاخبار', 'ايه الجديد', 'ملخص اليوم', 'ملخص النهارده', 'احوال النهارده', 'اخبار النهارده', 'اخبار اليوم', 'احوال الشغل')) intent = 'daily_summary';
     else if ((has('متاخر') && has('قسط', 'اقساط', 'دفع')) || has('ما دفعش', 'مدفعش', 'لسه ما دفع', 'لم يدفع', 'ما سددش')) intent = 'late_installments';
     else if (today && (has('مستحق', 'يستحق', 'تستحق', 'يدفع', 'يدفعوا', 'الدفع', 'دفع', 'سداد', 'يسدد') || has('قسط', 'اقساط'))) intent = 'due_today';
     else if (has('محاضر', 'حصه', 'حصص') && today) intent = 'sessions_today';
+    else if (has('محاضر', 'حصه', 'حصص') && has('امبارح', 'بكره', 'غدا')) intent = 'sessions_other_day';
     else if (has('حضور', 'غياب', 'حاضر', 'غايب') && today) intent = 'attendance_today';
     else if (has('مجموع') && has('متاح', 'مكان', 'اماكن', 'فاضل', 'فاضي')) intent = 'available_groups';
     else if (has('تحصيل', 'ايراد', 'دخل', 'حصلنا') && (today || has('اسبوع'))) intent = has('اسبوع') && !today ? 'collections_week' : 'collections_today';
     else if (has('عميل', 'عملاء') && has('جديد', 'جدد')) intent = 'new_leads';
     else if (phoneMatch) intent = 'customer_by_phone';
-    else if (has('كيف', 'ازاي', 'طريقه')) {
+    else if (has('بيانات') && has('عميل')) intent = 'customer_by_phone';
+    else if (has('كيف', 'ازاي', 'طريقه', 'خطوات')) {
       if (has('حجز')) intent = 'howto_booking';
       else if (has('قسط') || has('تقسيط')) intent = 'howto_installments';
       else if (has('توزيع') || has('حضور')) intent = 'howto_other';
