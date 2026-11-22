@@ -1,0 +1,30 @@
+# مشغّل مهام الأتمتة: ينادي /api/cron/run كل 15 دقيقة حتى لو كانت خدمة Render نائمة.
+# يعمل على GitHub Actions المجانية (المستودع عام). السرّ يُخزن في Settings > Secrets > CRON_SECRET.
+name: kayan-cron
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:   # تشغيل يدوي للاختبار
+
+jobs:
+  run-automation:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call automation endpoint
+        run: |
+          code=$(curl -s -o /tmp/cron-body.json -w '%{http_code}' --max-time 90 -X POST \
+            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
+            "https://kayan-system.onrender.com/api/cron/run")
+          echo "HTTP $code"
+          cat /tmp/cron-body.json
+          # أول نداء بعد إيقاظ الخدمة قد يرجع 502/504 بينما تستيقظ؛ أعد المحاولة مرة واحدة
+          if [ "$code" != "200" ]; then
+            sleep 30
+            code=$(curl -s -o /tmp/cron-body2.json -w '%{http_code}' --max-time 90 -X POST \
+              -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
+              "https://kayan-system.onrender.com/api/cron/run")
+            echo "retry HTTP $code"
+            cat /tmp/cron-body2.json
+          fi
+          [ "$code" = "200" ]
