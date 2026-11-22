@@ -29,7 +29,7 @@ const NO_CAP = 'هذا السؤال خارج نطاق صلاحياتك في ال
 async function answer(question, user) {
   const t = norm(question);
   const has = (...words) => words.some(w => t.includes(norm(w)));
-  const rc = (cap) => can(user.role, cap);
+  const rc = (cap) => can(user.roles || [user.role], cap);
   const today = has('اليوم', 'النهارده');
   const finList = rc('installments.view') ? 'full' : rc('installments.view.limited') ? 'limited' : null;
   try {

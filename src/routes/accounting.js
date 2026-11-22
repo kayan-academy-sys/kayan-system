@@ -28,7 +28,7 @@ router.get('/', async (req, res) => {
   const balances = await accountBalances();
   const closingToday = (await q('SELECT * FROM daily_closings WHERE closing_date=current_date')).rows[0] || null;
   const closings = (await q('SELECT c.*, u.name AS closed_by_name FROM daily_closings c LEFT JOIN users u ON u.id=c.closed_by ORDER BY closing_date DESC LIMIT 14')).rows;
-  res.render('accounting/dashboard', { title: 'لوحة الحسابات', nav: 'accounting', totals, outstanding, inst, byChannel, balances, closingToday, closings, canClose: can(req.user.role, 'closings.manage') });
+  res.render('accounting/dashboard', { title: 'لوحة الحسابات', nav: 'accounting', totals, outstanding, inst, byChannel, balances, closingToday, closings, canClose: can(req.user.roles, 'closings.manage') });
 });
 
 // إقفال يومي
@@ -51,7 +51,7 @@ router.get('/payments', async (req, res) => {
     FROM payments p JOIN sales_orders o ON o.id=p.order_id JOIN customers c ON c.id=o.customer_id
     JOIN financial_accounts a ON a.id=p.account_id LEFT JOIN users u ON u.id=p.received_by LEFT JOIN users v ON v.id=p.voided_by
     ORDER BY p.id DESC LIMIT 300`);
-  res.render('accounting/payments', { title: 'المدفوعات', nav: 'payments', rows, canVoid: can(req.user.role, 'payments.void') });
+  res.render('accounting/payments', { title: 'المدفوعات', nav: 'payments', rows, canVoid: can(req.user.roles, 'payments.void') });
 });
 
 router.post('/payments', requireCap('payments.create'), async (req, res) => {
@@ -118,7 +118,7 @@ router.get('/installments', async (req, res) => {
     JOIN sales_orders o ON o.id=p.order_id AND o.status='approved'
     JOIN customers c ON c.id=o.customer_id
     WHERE TRUE ${cond} ORDER BY i.due_date LIMIT 300`);
-  res.render('accounting/installments', { title: 'الأقساط', nav: 'installments', rows, filter, canManage: can(req.user.role, 'installments.manage'), canPay: can(req.user.role, 'payments.create') });
+  res.render('accounting/installments', { title: 'الأقساط', nav: 'installments', rows, filter, canManage: can(req.user.roles, 'installments.manage'), canPay: can(req.user.roles, 'payments.create') });
 });
 
 // تأجيل قسط: الاحتفاظ بالتاريخ الأصلي والسبب والموافقة
@@ -141,7 +141,7 @@ router.get('/expenses', async (req, res) => {
     ORDER BY e.expense_date DESC, e.id DESC LIMIT 300`);
   const types = (await q('SELECT * FROM expense_types ORDER BY name')).rows;
   const accounts = (await q(`SELECT * FROM financial_accounts WHERE active=TRUE ORDER BY id`)).rows;
-  res.render('accounting/expenses', { title: 'المصروفات', nav: 'expenses', rows, types, accounts, canManage: can(req.user.role, 'expenses.void'), canTypes: can(req.user.role, 'expense_types.manage') });
+  res.render('accounting/expenses', { title: 'المصروفات', nav: 'expenses', rows, types, accounts, canManage: can(req.user.roles, 'expenses.void'), canTypes: can(req.user.roles, 'expense_types.manage') });
 });
 
 router.post('/expenses', requireCap('expenses.create'), async (req, res) => {
@@ -178,7 +178,7 @@ router.get('/transfers', requireCap('transfers.view', 'transfers.create', 'accou
     FROM transfers t JOIN financial_accounts f ON f.id=t.from_account_id JOIN financial_accounts tt ON tt.id=t.to_account_id
     LEFT JOIN users u ON u.id=t.recorded_by ORDER BY t.id DESC LIMIT 200`);
   const accounts = (await q(`SELECT * FROM financial_accounts WHERE active=TRUE ORDER BY id`)).rows;
-  res.render('accounting/transfers', { title: 'التحويلات بين الحسابات', nav: 'accounting', rows, accounts, canCreate: can(req.user.role, 'transfers.create') });
+  res.render('accounting/transfers', { title: 'التحويلات بين الحسابات', nav: 'accounting', rows, accounts, canCreate: can(req.user.roles, 'transfers.create') });
 });
 
 router.post('/transfers', requireCap('transfers.create'), async (req, res) => {

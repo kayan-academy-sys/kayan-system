@@ -10,7 +10,7 @@ router.use(requireAuth);
 
 function scopeLeads(req) {
   // المشاهدة: الكل أو المسند إليه فقط
-  if (can(req.user.role, 'leads.view.all')) return { cond: '', params: [] };
+  if (can(req.user.roles, 'leads.view.all')) return { cond: '', params: [] };
   return { cond: 'AND (l.assigned_to=$1 OR l.created_by=$1)', params: [req.user.id] };
 }
 
@@ -29,7 +29,7 @@ router.get('/', requireCap('leads.view.all', 'leads.view.own'), async (req, res)
     FROM leads l JOIN customers c ON c.id=l.customer_id
     LEFT JOIN courses co ON co.id=l.course_id LEFT JOIN users u ON u.id=l.assigned_to
     ${where} ORDER BY followup_due DESC, l.id DESC LIMIT 300`, params);
-  const salesUsers = can(req.user.role, 'leads.view.all')
+  const salesUsers = can(req.user.roles, 'leads.view.all')
     ? (await q(`SELECT id, name FROM users WHERE role IN ('sales_manager','sales_team_leader','sales_staff') AND active=TRUE ORDER BY name`)).rows : [];
   res.render('leads/index', { title: 'العملاء المحتملون', nav: 'leads', rows, salesUsers, query: req.query });
 });
@@ -122,21 +122,21 @@ router.get('/:id', requireCap('leads.view.all', 'leads.view.own'), async (req, r
     WHERE l.id=$1`, [req.params.id]);
   if (!rows.length) return res.status(404).render('error', { title: 'غير موجود', message: 'الفرصة غير موجودة.' });
   const lead = rows[0];
-  if (!can(req.user.role, 'leads.view.all') && lead.assigned_to !== req.user.id && lead.created_by !== req.user.id) {
+  if (!can(req.user.roles, 'leads.view.all') && lead.assigned_to !== req.user.id && lead.created_by !== req.user.id) {
     return res.status(403).render('error', { title: 'غير مسموح', message: 'هذه الفرصة مسندة لموظف آخر.' });
   }
   const activities = (await q(`SELECT a.*, u.name AS user_name FROM lead_activities a JOIN users u ON u.id=a.user_id WHERE a.lead_id=$1 ORDER BY a.id DESC`, [lead.id])).rows;
   const assignments = (await q(`SELECT la.*, f.name AS from_name, t.name AS to_name, b.name AS by_name FROM lead_assignments la
     LEFT JOIN users f ON f.id=la.from_user_id LEFT JOIN users t ON t.id=la.to_user_id LEFT JOIN users b ON b.id=la.assigned_by
     WHERE la.lead_id=$1 ORDER BY la.id DESC`, [lead.id])).rows;
-  const salesUsers = can(req.user.role, 'leads.assign') ? (await q(`SELECT id, name FROM users WHERE role IN ('sales_staff','sales_team_leader') AND active=TRUE ORDER BY name`)).rows : [];
+  const salesUsers = can(req.user.roles, 'leads.assign') ? (await q(`SELECT id, name FROM users WHERE active=TRUE AND (role IN ('sales_staff','sales_team_leader') OR extra_roles && ARRAY['sales_staff','sales_team_leader']::text[]) ORDER BY name`)).rows : [];
   res.render('leads/detail', { title: 'فرصة: ' + lead.customer_name, nav: 'leads', lead, activities, assignments, salesUsers, notice: req.query.notice || null });
 });
 
 router.post('/:id/activity', requireCap('leads.edit'), async (req, res) => {
   const lead = (await q('SELECT * FROM leads WHERE id=$1', [req.params.id])).rows[0];
   if (!lead) return res.status(404).render('error', { title: 'غير موجود', message: 'الفرصة غير موجودة.' });
-  if (!can(req.user.role, 'leads.view.all') && lead.assigned_to !== req.user.id && lead.created_by !== req.user.id) {
+  if (!can(req.user.roles, 'leads.view.all') && lead.assigned_to !== req.user.id && lead.created_by !== req.user.id) {
     return res.status(403).render('error', { title: 'غير مسموح', message: 'هذه الفرصة مسندة لموظف آخر.' });
   }
   const { type, result, notes, next_follow_up_at, status, interest_score, lost_reason } = req.body;

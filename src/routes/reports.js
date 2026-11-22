@@ -14,7 +14,7 @@ function csv(rows, headers) {
 }
 
 router.get('/', async (req, res) => {
-  res.render('reports/index', { title: 'التقارير', nav: 'reports', canSales: can(req.user.role, 'reports.sales'), canFinance: can(req.user.role, 'reports.finance') });
+  res.render('reports/index', { title: 'التقارير', nav: 'reports', canSales: can(req.user.roles, 'reports.sales'), canFinance: can(req.user.roles, 'reports.finance') });
 });
 
 router.get('/sales', requireCap('reports.sales'), async (req, res) => {
@@ -37,7 +37,7 @@ router.get('/sales', requireCap('reports.sales'), async (req, res) => {
     FROM leads l ${where}`, params)).rows[0];
   const bySource = (await q(`SELECT l.source, count(*) AS n FROM leads l ${where} GROUP BY l.source ORDER BY n DESC`, params)).rows;
   const salesUsers = (await q(`SELECT id, name FROM users WHERE role IN ('sales_staff','sales_team_leader','sales_manager') ORDER BY name`)).rows;
-  if (format === 'csv' && can(req.user.role, 'reports.export')) {
+  if (format === 'csv' && can(req.user.roles, 'reports.export')) {
     res.set('Content-Type', 'text/csv; charset=utf-8');
     res.set('Content-Disposition', 'attachment; filename="sales-report.csv"');
     return res.send(csv(rows, [
@@ -47,7 +47,7 @@ router.get('/sales', requireCap('reports.sales'), async (req, res) => {
       { get: r => new Date(r.created_at).toISOString().slice(0, 10), label: 'التاريخ' }
     ]));
   }
-  res.render('reports/sales', { title: 'تقرير المبيعات', nav: 'reports', rows, stats, bySource, salesUsers, query: req.query, canExport: can(req.user.role, 'reports.export') });
+  res.render('reports/sales', { title: 'تقرير المبيعات', nav: 'reports', rows, stats, bySource, salesUsers, query: req.query, canExport: can(req.user.roles, 'reports.export') });
 });
 
 router.get('/finance', requireCap('reports.finance'), async (req, res) => {
@@ -76,7 +76,7 @@ router.get('/finance', requireCap('reports.finance'), async (req, res) => {
     WHERE i.status='pending' AND i.due_date < current_date
     AND (SELECT COALESCE(sum(pay.amount),0) FROM payments pay WHERE pay.installment_id=i.id AND pay.status='active') < i.amount
     ORDER BY i.due_date LIMIT 500`)).rows;
-  if (format === 'csv' && can(req.user.role, 'reports.export')) {
+  if (format === 'csv' && can(req.user.roles, 'reports.export')) {
     res.set('Content-Type', 'text/csv; charset=utf-8');
     res.set('Content-Disposition', 'attachment; filename="finance-report.csv"');
     const rows = payments.map(p => ({ kind: 'إيراد', date: new Date(p.paid_at).toISOString().slice(0, 10), label: p.customer_name, amount: p.amount, account: p.account_name }))
@@ -86,7 +86,7 @@ router.get('/finance', requireCap('reports.finance'), async (req, res) => {
       { key: 'amount', label: 'المبلغ' }, { key: 'account', label: 'الحساب' }
     ]));
   }
-  res.render('reports/finance', { title: 'التقرير المالي', nav: 'reports', payments, expenses, totalIn, totalOut, balances, types, overdue, query: req.query, canExport: can(req.user.role, 'reports.export') });
+  res.render('reports/finance', { title: 'التقرير المالي', nav: 'reports', payments, expenses, totalIn, totalOut, balances, types, overdue, query: req.query, canExport: can(req.user.roles, 'reports.export') });
 });
 
 module.exports = router;

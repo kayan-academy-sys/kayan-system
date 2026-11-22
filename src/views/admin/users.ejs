@@ -61,7 +61,8 @@
     <tr><th>الاسم</th><th>البريد</th><th>الدور</th><th>الحالة</th><th>آخر دخول</th><th>أضيف بواسطة</th><th></th></tr>
     <% users.forEach(u => { %>
     <tr>
-      <td><%= u.name %></td><td dir="ltr"><%= u.email %></td><td><%= roles[u.role] %></td>
+      <td><%= u.name %></td><td dir="ltr"><%= u.email %></td>
+      <td><%= roles[u.role] %><% (u.extra_roles||[]).forEach(er => { %> <span class="badge">+ <%= roles[er] %></span><% }) %></td>
       <td><span class="badge <%= u.active?'green':'red' %>"><%= u.active?'نشط':'معطّل' %></span></td>
       <td class="muted"><%= u.last_login_at ? new Date(u.last_login_at).toLocaleString('ar-EG') : '—' %></td>
       <td class="muted"><%= u.invited_by_name || '—' %></td>
@@ -71,6 +72,17 @@
           <input type="hidden" name="_csrf" value="<%= csrf %>">
           <button class="btn <%= u.active?'danger':'ghost' %> sm"><%= u.active?'تعطيل':'تفعيل' %></button>
         </form>
+        <details style="margin-top:6px">
+          <summary class="muted" style="cursor:pointer">تعديل الأدوار</summary>
+          <form method="post" action="/admin/users/<%= u.id %>/roles" style="margin-top:6px">
+            <input type="hidden" name="_csrf" value="<%= csrf %>">
+            <label class="muted">الدور الأساسي</label>
+            <select name="role"><% assignableRoles.forEach(r => { %><option value="<%= r %>" <%= u.role===r?'selected':'' %>><%= roles[r] %></option><% }) %></select>
+            <label class="muted">أدوار إضافية (اختيار متعدد)</label>
+            <select name="extra_roles" multiple size="4"><% assignableRoles.forEach(r => { %><option value="<%= r %>" <%= (u.extra_roles||[]).includes(r)?'selected':'' %>><%= roles[r] %></option><% }) %></select>
+            <button class="btn sm">حفظ الأدوار</button>
+          </form>
+        </details>
         <% } %>
       </td>
     </tr>

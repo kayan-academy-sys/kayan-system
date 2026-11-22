@@ -46,12 +46,12 @@ router.get('/:id', async (req, res) => {
   const booked = students.length;
   // تسجيلات نشطة لنفس الكورس لم تُحدد مجموعتها بعد — لإلحاقها بهذه المجموعة من هنا
   let unassigned = [];
-  if (can(req.user.role, 'groups.manage') && ['open','nearly_full'].includes(group.status)) {
+  if (can(req.user.roles, 'groups.manage') && ['open','nearly_full'].includes(group.status)) {
     unassigned = (await q(`SELECT e.id AS enrollment_id, cu.name, cu.phone, o.id AS order_id
       FROM enrollments e JOIN customers cu ON cu.id=e.customer_id JOIN sales_orders o ON o.id=e.order_id AND o.status='approved'
       WHERE e.course_id=$1 AND e.group_id IS NULL AND e.status='active' ORDER BY cu.name`, [group.course_id])).rows;
   }
-  res.render('groups/detail', { title: 'مجموعة ' + group.name, nav: 'groups', group, sessions, students, booked, available: group.capacity - booked, canManage: can(req.user.role, 'groups.manage'), unassigned });
+  res.render('groups/detail', { title: 'مجموعة ' + group.name, nav: 'groups', group, sessions, students, booked, available: group.capacity - booked, canManage: can(req.user.roles, 'groups.manage'), unassigned });
 });
 
 // إلحاق تسجيل غير محدد المجموعة بهذه المجموعة (صلاحية إدارة المجموعات + فحص السعة)

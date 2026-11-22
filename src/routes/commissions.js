@@ -28,7 +28,7 @@ accounting.get('/', async (req, res) => {
   const salesUsers = (await q(`SELECT id, name, monthly_target FROM users WHERE role IN ('sales_manager','sales_team_leader','sales_staff') AND active=TRUE ORDER BY name`)).rows;
   res.render('accounting/commissions', {
     title: 'عمولات المبيعات', nav: 'commissions', rows, rule, defaults: DEFAULTS, methodLabels: METHOD_LABELS,
-    salesUsers, month: mkey, canManage: can(req.user.role, 'commissions.manage'), canExecute: can(req.user.role, 'commissions.execute'), saved: req.query.saved === '1'
+    salesUsers, month: mkey, canManage: can(req.user.roles, 'commissions.manage'), canExecute: can(req.user.roles, 'commissions.execute'), saved: req.query.saved === '1'
   });
 });
 

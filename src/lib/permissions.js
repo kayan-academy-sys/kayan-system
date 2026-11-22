@@ -66,14 +66,21 @@ const CAPS = {
   ]
 };
 
-function can(role, cap) {
-  const list = CAPS[role] || [];
-  if (list.includes('*')) return true;
-  if (list.includes(cap)) return true;
-  const ns = cap.split('.')[0] + '.*';
-  return list.includes(ns);
+// أدوار المستخدم الفعلية: الأساسي + الإضافية
+function rolesOf(user) { return [user.role, ...((user && user.extra_roles) || [])]; }
+
+// يقبل دورًا واحدًا (نص) أو مجموعة أدوار (مصفوفة) — الصلاحية تُمنح إذا منحها أي دور
+function can(roleOrRoles, cap) {
+  const roles = Array.isArray(roleOrRoles) ? roleOrRoles : [roleOrRoles];
+  return roles.some(role => {
+    const list = CAPS[role] || [];
+    if (list.includes('*')) return true;
+    if (list.includes(cap)) return true;
+    const ns = cap.split('.')[0] + '.*';
+    return list.includes(ns);
+  });
 }
 
-function canAny(user, caps) { return caps.some(c => can(user.role, c)); }
+function canAny(user, caps) { return caps.some(c => can(rolesOf(user), c)); }
 
-module.exports = { ROLES, SALES_ROLES, CAPS, can, canAny };
+module.exports = { ROLES, SALES_ROLES, CAPS, can, canAny, rolesOf };

@@ -16,7 +16,7 @@ router.get('/users', requireCap('users.manage', 'users.request'), async (req, re
   const { rows: users } = await q(`SELECT u.*, i.name AS invited_by_name FROM users u LEFT JOIN users i ON i.id=u.invited_by ORDER BY u.id`);
   const { rows: invites } = await q(`SELECT v.*, u.name AS created_by_name FROM invites v LEFT JOIN users u ON u.id=v.created_by ORDER BY v.id DESC`);
   const { rows: requests } = await q(`SELECT r.*, u.name AS requested_by_name FROM user_add_requests r JOIN users u ON u.id=r.requested_by ORDER BY r.id DESC`);
-  res.render('admin/users', { title: 'المستخدمون', users, invites, requests, roles: ROLES, assignableRoles: ASSIGNABLE_ROLES, inviteLink: null, canManage: can(req.user.role, 'users.manage') });
+  res.render('admin/users', { title: 'المستخدمون', users, invites, requests, roles: ROLES, assignableRoles: ASSIGNABLE_ROLES, inviteLink: null, canManage: can(req.user.roles, 'users.manage') });
 });
 
 router.post('/users/invite', requireCap('users.manage'), async (req, res) => {
@@ -35,6 +35,29 @@ router.post('/users/invite', requireCap('users.manage'), async (req, res) => {
   const { rows: invites } = await q(`SELECT v.*, u.name AS created_by_name FROM invites v LEFT JOIN users u ON u.id=v.created_by ORDER BY v.id DESC`);
   const { rows: requests } = await q(`SELECT r.*, u.name AS requested_by_name FROM user_add_requests r JOIN users u ON u.id=r.requested_by ORDER BY r.id DESC`);
   res.render('admin/users', { title: 'المستخدمون', users, invites, requests, roles: ROLES, assignableRoles: ASSIGNABLE_ROLES, inviteLink, canManage: true });
+});
+
+// تعديل أدوار مستخدم: أساسي + أدوار إضافية (تدقيق كامل بالقيم قبل/بعد)
+router.post('/users/:id/roles', requireCap('users.manage'), async (req, res) => {
+  const target = await q('SELECT * FROM users WHERE id=$1', [req.params.id]);
+  if (!target.rowCount) return res.status(404).render('error', { title: 'غير موجود', message: 'المستخدم غير موجود.' });
+  const t = target.rows[0];
+  if (t.role === 'admin') {
+    return res.status(403).render('error', { title: 'غير مسموح', message: 'لا يمكن تغيير أدوار مدير النظام الأصلي.' });
+  }
+  const role = (req.body.role || '').trim();
+  if (!ASSIGNABLE_ROLES.includes(role)) {
+    return res.status(400).render('error', { title: 'دور غير صالح', message: 'اختر دورًا أساسيًا صحيحًا.' });
+  }
+  let extras = req.body.extra_roles || [];
+  if (!Array.isArray(extras)) extras = [extras];
+  extras = [...new Set(extras.filter(r => ASSIGNABLE_ROLES.includes(r) && r !== role))];
+  await q('UPDATE users SET role=$1, extra_roles=$2, updated_at=now() WHERE id=$3', [role, extras, t.id]);
+  await audit(req, 'user_roles_changed', 'user', t.id, {
+    before: { role: t.role, extra_roles: t.extra_roles || [] },
+    after: { role, extra_roles: extras }
+  });
+  res.redirect('/admin/users');
 });
 
 router.post('/users/:id/toggle', requireCap('users.manage'), async (req, res) => {
