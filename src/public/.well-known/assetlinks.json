@@ -1,0 +1,8 @@
+[{
+      "relation": ["delegate_permission/common.handle_all_urls"],
+      "target": {
+        "namespace": "android_app",
+        "package_name": "com.onrender.kayan_system.twa",
+        "sha256_cert_fingerprints": ["DA:2D:94:09:72:11:20:A7:CA:B4:DD:16:09:C4:96:1A:33:27:95:37:89:BA:9E:B5:47:E9:4A:47:6F:F6:A2:12"]
+      }
+    }]

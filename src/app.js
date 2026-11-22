@@ -38,6 +38,10 @@ app.get('/sw.js', (req, res) => {
   res.type('application/javascript').sendFile(path.join(__dirname, 'public', 'sw.js'));
 });
 app.get('/manifest.webmanifest', (req, res) => res.redirect('/static/manifest.webmanifest'));
+// ربط تطبيق أندرويد (TWA) بالنطاق حتى يفتح بملء الشاشة بدون شريط المتصفح
+app.get('/.well-known/assetlinks.json', (req, res) => {
+  res.type('application/json').sendFile(path.join(__dirname, 'public', '.well-known', 'assetlinks.json'));
+});
 app.use(loadUser);
 
 // Webhook واتساب ونقطة cron لا يحتاجان CSRF (محميان بأسرار خاصة)
