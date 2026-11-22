@@ -67,7 +67,7 @@
       <td><span class="badge <%= cm.status === 'paid' ? 'green' : (cm.status === 'cancelled' ? 'red' : 'orange') %>"><%= STATUS[cm.status] %></span>
         <% if (cm.note) { %><br><span class="muted"><%= cm.note %></span><% } %></td>
       <td>
-        <% if (canManage) { %>
+        <% if (canExecute) { %>
           <% if (cm.status === 'pending') { %>
             <form method="post" action="/accounting/commissions/<%= cm.id %>/approve"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn sm">اعتماد</button></form>
           <% } else if (cm.status === 'approved') { %>

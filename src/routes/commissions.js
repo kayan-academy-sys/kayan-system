@@ -28,7 +28,7 @@ accounting.get('/', async (req, res) => {
   const salesUsers = (await q(`SELECT id, name, monthly_target FROM users WHERE role IN ('sales_manager','sales_team_leader','sales_staff') AND active=TRUE ORDER BY name`)).rows;
   res.render('accounting/commissions', {
     title: 'عمولات المبيعات', nav: 'commissions', rows, rule, defaults: DEFAULTS, methodLabels: METHOD_LABELS,
-    salesUsers, month: mkey, canManage: can(req.user.role, 'commissions.manage'), saved: req.query.saved === '1'
+    salesUsers, month: mkey, canManage: can(req.user.role, 'commissions.manage'), canExecute: can(req.user.role, 'commissions.execute'), saved: req.query.saved === '1'
   });
 });
 
@@ -93,9 +93,9 @@ async function setStatus(req, res, id, from, to, markPaid) {
   res.redirect(req.get('referer') || '/accounting/commissions');
 }
 
-accounting.post('/:id/approve', requireCap('commissions.manage'), (req, res) => setStatus(req, res, req.params.id, 'pending', 'approved', false));
-accounting.post('/:id/pay', requireCap('commissions.manage'), (req, res) => setStatus(req, res, req.params.id, 'approved', 'paid', true));
-accounting.post('/:id/cancel', requireCap('commissions.manage'), async (req, res) => {
+accounting.post('/:id/approve', requireCap('commissions.execute'), (req, res) => setStatus(req, res, req.params.id, 'pending', 'approved', false));
+accounting.post('/:id/pay', requireCap('commissions.execute'), (req, res) => setStatus(req, res, req.params.id, 'approved', 'paid', true));
+accounting.post('/:id/cancel', requireCap('commissions.execute'), async (req, res) => {
   const { rowCount } = await q(
     `UPDATE commission_months SET status='cancelled', note=$1 WHERE id=$2 AND status IN ('pending','approved')`,
     [req.body.note || null, req.params.id]);

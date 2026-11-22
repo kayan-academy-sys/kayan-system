@@ -46,13 +46,13 @@ const CAPS = {
     'dashboard.view', 'payments.view', 'payments.create', 'payments.void',
     'installments.view', 'installments.manage', 'expenses.view', 'expenses.create', 'expenses.void',
     'expense_types.manage', 'accounts.view', 'accounts.manage', 'transfers.create', 'transfers.view',
-    'closings.manage', 'orders.view.all', 'orders.cancel', 'commissions.view.all', 'commissions.manage',
+    'closings.manage', 'orders.view.all', 'orders.cancel', 'commissions.view.all', 'commissions.manage', 'commissions.execute',
     'reports.finance', 'reports.export', 'notifications.view', 'ai.use'
   ],
   accounting_staff: [
     'dashboard.view', 'payments.view', 'payments.create', 'installments.view',
     'expenses.view', 'expenses.create', 'accounts.view', 'transfers.view',
-    'orders.view.all', 'reports.finance', 'notifications.view', 'ai.use', 'commissions.view.all'
+    'orders.view.all', 'reports.finance', 'notifications.view', 'ai.use', 'commissions.view.all', 'commissions.manage'
   ],
   reception: [
     'dashboard.view', 'reception.view', 'attendance.record', 'attendance.view',

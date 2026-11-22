@@ -123,8 +123,13 @@ test('commissions: salesperson sees only own months; accounting staff read-only;
   assert.notEqual((await agent3.get('/commissions')).status, 200);
   const { agent: agent4, withCsrf: w4 } = await loginAgent('as@test');
   assert.equal((await agent4.get('/accounting/commissions')).status, 200);
-  const res = await w4('post', '/accounting/commissions/rule', { target: '1', threshold_pct: '1', rate_in: '1', rate_over: '1', method: 'invoice_weighted' });
-  assert.notEqual(res.status, 302);
+  // قسم الحسابات يعدّل النسب والأرقام (طلب محمد)
+  const res = await w4('post', '/accounting/commissions/rule', { target: '50000', threshold_pct: '80', rate_in: '7.5', rate_over: '10', method: 'invoice_weighted' });
+  assert.equal(res.status, 302);
+  // لكن الصرف والاعتماد والإلغاء لمدير الحسابات فقط
+  const row = (await q('SELECT id FROM commission_months LIMIT 1')).rows[0];
+  const res2 = await w4('post', `/accounting/commissions/${row.id}/approve`, {});
+  assert.notEqual(res2.status, 302);
 });
 
 test('commissions: status flow; approved/paid rows frozen against regenerate', async () => {
