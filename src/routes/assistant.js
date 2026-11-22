@@ -1,7 +1,9 @@
 // مساعد كيان: مساعد بحث داخلي يجيب موظفي النظام عن أسئلة تشغيلية محددة من قاعدة البيانات مباشرة.
-// المطابقة المحلية بالكلمات المفتاحية هي الأساس. عند توفر COHERE_API_KEY يُصنَّف السؤال غير المفهوم
-// عبر Cohere (نص السؤال فقط بعد حجب أرقام الهواتف والأرقام الطويلة — لا تُرسل أي بيانات من قاعدة البيانات)،
-// ثم تُبنى الإجابة محليًا من الاستعلامات نفسها. عند أي عطل أو غياب المفتاح يعمل المساعد بالمطابقة المحلية وحدها.
+// المطابقة المحلية بالكلمات المفتاحية هي الأساس، وأسئلة الموظفين العادية لا تغادر الخادم أبدًا.
+// التصنيف الخارجي عبر Cohere مقيد بوضع اختبار صريح من جهة الخادم فقط: يتطلب COHERE_API_KEY
+// وAI_EXTERNAL_TEST=synthetic-only معًا، ولا يعمل إلا لأسئلة تبدأ ببادئة الاختبار «تجربة:».
+// عندها يُرسل نص السؤال فقط بعد حجب أرقام الهواتف والأرقام الطويلة — لا تُرسل أي بيانات من قاعدة البيانات —
+// وتُبنى الإجابة محليًا من الاستعلامات نفسها. أي عطل أو غياب الإعداد: المطابقة المحلية وحدها.
 // الإجابات مقيدة بصلاحيات الدور: لا يرى الموظف إلا ما تسمح به صلاحياته.
 const express = require('express');
 const config = require('../config');
@@ -27,10 +29,12 @@ function norm(s) {
 const CAPABILITIES = 'أقدر أجاوبك عن: الأقساط المتأخرة، الأقساط المستحقة اليوم، محاضرات اليوم، حضور اليوم، المجموعات المتاحة، تحصيل اليوم أو الأسبوع، العملاء الجدد، بيانات عميل برقم هاتفه، ملخص اليوم، وخطوات تنفيذ إجراء (حجز، تقسيط، توزيع، حضور...) — كلٌّ حسب صلاحياتك.';
 const NO_CAP = 'هذا السؤال خارج نطاق صلاحياتك في النظام. لو محتاجه فعلًا، اسأل مدير القسم المختص.';
 
-// --- التصنيف الذكي عبر Cohere (اختياري، fail-closed) ---
+// --- التصنيف الذكي عبر Cohere: وضع اختبار صريح فقط (synthetic-only) ---
 const LLM_KEY = process.env.COHERE_API_KEY || '';
 const LLM_MODEL = process.env.COHERE_MODEL || 'command-a-03-2025';
 const LLM_TIMEOUT_MS = 8000;
+const LLM_TEST_MODE = process.env.AI_EXTERNAL_TEST === 'synthetic-only';
+const TEST_PREFIX = 'تجربة:';
 
 const INTENT_LIST = [
   ['greeting', 'تحية أو سلام فقط'],
@@ -243,9 +247,11 @@ async function answer(question, user) {
     // سؤال «كيف» العام كان يرجع قائمة القدرات مباشرة
     if (intent === 'capabilities_only') return CAPABILITIES;
 
-    // لو المطابقة المحلية لم تفهم السؤال: التصنيف الذكي (نص السؤال فقط)، ثم تنفيذ محلي
-    if (intent === 'fallback') {
-      const llm = await classifyWithLLM(question);
+    // التصنيف الخارجي مقيد: لا يعمل إلا في وضع الاختبار الصريح ولأسئلة تحمل بادئة «تجربة:»
+    // حتى لا يغادر أي سؤال حقيقي لموظف الخادم. الأسئلة العادية تبقى محلية دائمًا.
+    if (intent === 'fallback' && LLM_KEY && LLM_TEST_MODE && question.startsWith(TEST_PREFIX)) {
+      const synthetic = question.slice(TEST_PREFIX.length).trim();
+      const llm = await classifyWithLLM(synthetic);
       if (llm && handlers[llm]) intent = llm;
     }
     return await handlers[intent]();
@@ -255,7 +261,7 @@ async function answer(question, user) {
 }
 
 router.get('/', (req, res) => {
-  res.render('assistant', { title: 'مساعد كيان', nav: 'assistant', history: req.session.aiHistory || [], aiExternal: !!LLM_KEY });
+  res.render('assistant', { title: 'مساعد كيان', nav: 'assistant', history: req.session.aiHistory || [], aiExternal: !!(LLM_KEY && LLM_TEST_MODE) });
 });
 
 router.post('/', async (req, res) => {
