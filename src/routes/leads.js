@@ -116,6 +116,7 @@ router.get('/monitor', requireCap('leads.monitor'), async (req, res) => {
 });
 
 router.get('/:id', requireCap('leads.view.all', 'leads.view.own'), async (req, res) => {
+  if (!/^\d+$/.test(req.params.id)) return res.status(404).render('error', { title: 'غير موجود', message: 'الفرصة غير موجودة.' });
   const { rows } = await q(`
     SELECT l.*, c.name AS customer_name, c.phone AS customer_phone, c.email AS customer_email, co.name AS course_name, u.name AS assigned_name
     FROM leads l JOIN customers c ON c.id=l.customer_id LEFT JOIN courses co ON co.id=l.course_id LEFT JOIN users u ON u.id=l.assigned_to
