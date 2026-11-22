@@ -45,6 +45,11 @@ router.post('/closings', requireCap('closings.manage'), async (req, res) => {
   res.redirect('/accounting');
 });
 
+// سياسة الدفعات المقدمة للمحاضرين: قرار المالك معلّق حتى الآن.
+// المسار الافتراضي (false): يمنع أي دفعة تتجاوز الرصيد المستحق (المتفق عليه للمجموعات المنتهية − المدفوع).
+// المسار البديل جاهز: إذا اعتمد المالك الدفعات المقدمة صراحة يُغيَّر هذا الثابت إلى true فتُسمح بها.
+const ALLOW_TRAINER_ADVANCES = false;
+
 // حساب المحاضرين — مبلغ متفق عليه لكل مجموعة يُستحق عند انتهائها (حالة finished)
 router.get('/trainers', async (req, res) => {
   const { rows } = await q(`SELECT t.id AS trainer_id, t.name AS trainer_name, t.status AS trainer_status,
@@ -123,6 +128,14 @@ router.post('/trainers/payments', requireCap('expenses.create'), async (req, res
   if (groupId) {
     const g = (await q('SELECT id, trainer_id FROM groups WHERE id=$1', [groupId])).rows[0];
     if (!g || g.trainer_id !== t.id) return res.status(400).render('error', { title: 'قيمة غير صالحة', message: 'المجموعة لا تتبع هذا المحاضر.' });
+  }
+  if (!ALLOW_TRAINER_ADVANCES) {
+    const earned = parseFloat((await q(`SELECT COALESCE(sum(tm.agreed_amount),0) AS s FROM trainer_group_terms tm JOIN groups g ON g.id=tm.group_id WHERE tm.trainer_id=$1 AND g.status='finished'`, [t.id])).rows[0].s);
+    const paid = parseFloat((await q(`SELECT COALESCE(sum(amount),0) AS s FROM trainer_payments WHERE trainer_id=$1 AND status='active'`, [t.id])).rows[0].s);
+    const available = earned - paid;
+    if (amount > available + 1e-9) {
+      return res.status(400).render('error', { title: 'يتجاوز المستحق', message: `المبلغ يتجاوز الرصيد المستحق المتاح (${available.toLocaleString('ar-EG')} ج.م). الدفعات المقدمة موقوفة لحين اعتماد المالك قاعدتها.` });
+    }
   }
   try {
     const paymentId = await tx(async (c) => {

@@ -1,10 +1,10 @@
 <%- include('../partials/top', {title, nav:'trainer-accounts'}) %>
-<div class="alert info">قاعدة الحساب: مبلغ متفق عليه لكل مجموعة، يُستحق للمحاضر عند انتهاء المجموعة (تغيير حالتها إلى «منتهية» من صفحة المجموعات). تسجيل الدفعة ينشئ مصروفًا مرتبطًا يخصم تلقائيًا من الحساب المختار (يظهر في صفحة المصروفات)، وإلغاء الدفعة يلغي المصروف معها.</div>
+<div class="alert info">قاعدة الحساب: مبلغ متفق عليه لكل مجموعة، يُستحق للمحاضر عند انتهاء المجموعة (تغيير حالتها إلى «منتهية» من صفحة المجموعات). تسجيل الدفعة ينشئ مصروفًا مرتبطًا يخصم تلقائيًا من الحساب المختار (يظهر في صفحة المصروفات)، وإلغاء الدفعة يلغي المصروف معها. لا يمكن تسجيل دفعة تتجاوز الرصيد المستحق؛ الدفعات المقدمة موقوفة لحين اعتماد المالك قاعدتها.</div>
 <div class="grid c4">
   <div class="stat"><div class="num"><%= totals.agreed.toLocaleString('ar-EG') %></div><div class="lbl">إجمالي متفق عليه (ج.م)</div></div>
   <div class="stat"><div class="num"><%= totals.earned.toLocaleString('ar-EG') %></div><div class="lbl">مستحق — مجموعات منتهية (ج.م)</div></div>
   <div class="stat"><div class="num"><%= totals.paid.toLocaleString('ar-EG') %></div><div class="lbl">مدفوع (ج.م)</div></div>
-  <div class="stat orange"><div class="num"><%= totals.balance.toLocaleString('ar-EG') %></div><div class="lbl">رصيد مستحق (ج.م)</div></div>
+  <div class="stat orange"><div class="num"><%= Math.abs(totals.balance).toLocaleString('ar-EG') %></div><div class="lbl"><%= totals.balance < 0 ? 'دفعات مقدمة — المدفوع يتجاوز المستحق (ج.م)' : 'رصيد مستحق (ج.م)' %></div></div>
 </div>
 <% list.forEach(T => { %>
 <div class="card">
@@ -13,7 +13,7 @@
     <div class="stat"><div class="num"><%= T.agreedTotal.toLocaleString('ar-EG') %></div><div class="lbl">متفق عليه (ج.م)</div></div>
     <div class="stat"><div class="num"><%= T.earned.toLocaleString('ar-EG') %></div><div class="lbl">مستحق (ج.م)</div></div>
     <div class="stat"><div class="num"><%= T.paid.toLocaleString('ar-EG') %></div><div class="lbl">مدفوع (ج.م)</div></div>
-    <div class="stat orange"><div class="num"><%= T.balance.toLocaleString('ar-EG') %></div><div class="lbl">الرصيد (ج.م)</div></div>
+    <div class="stat orange"><div class="num"><%= Math.abs(T.balance).toLocaleString('ar-EG') %></div><div class="lbl"><%= T.balance < 0 ? 'دفعة مقدمة — المدفوع يتجاوز المستحق (ج.م)' : 'الرصيد (ج.م)' %></div></div>
   </div>
   <% if (!T.groups.length) { %><p class="muted">لا توجد مجموعات مرتبطة بهذا المحاضر.</p><% } %>
   <% T.groups.forEach(G => { %>

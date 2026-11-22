@@ -58,11 +58,15 @@ test('payments: no overpayment, void reverses installment, staff cannot void', a
 
 test('session postpone preserves original; attendance recorded once per student', async () => {
   const { withCsrf: cmPost } = await loginAgent('cm@test');
-  await cmPost('post', `/groups/${groupId}/sessions`, { session_date: '2026-12-05', start_time: '18:00', end_time: '20:00', topic: 'م1' });
+  // تواريخ ماضية لأن تسجيل الحضور محصور بالمحاضرات التي بدأت فعلًا بتوقيت القاهرة (حارس 5fefa8a)
+  const fmt = (d) => d.toISOString().slice(0, 10);
+  const d2 = fmt(new Date(Date.now() - 2 * 86400000));
+  const d1 = fmt(new Date(Date.now() - 86400000));
+  await cmPost('post', `/groups/${groupId}/sessions`, { session_date: d2, start_time: '18:00', end_time: '20:00', topic: 'م1' });
   const sid = (await q('SELECT max(id) AS id FROM sessions')).rows[0].id;
-  await cmPost('post', `/sessions/${sid}/postpone`, { new_date: '2026-12-08', reason: 'اختبار' });
+  await cmPost('post', `/sessions/${sid}/postpone`, { new_date: d1, reason: 'اختبار' });
   const s = (await q('SELECT session_date::text AS sd, original_date::text AS od, status FROM sessions WHERE id=$1', [sid])).rows[0];
-  assert.equal(s.od, '2026-12-05');
+  assert.equal(s.od, d2);
   assert.equal(s.status, 'postponed');
   const { withCsrf: rcPost, agent: rc } = await loginAgent('rc@test');
   const eid = (await q('SELECT id FROM enrollments WHERE group_id=$1 LIMIT 1', [groupId])).rows[0].id;
