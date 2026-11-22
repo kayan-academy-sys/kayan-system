@@ -2,6 +2,17 @@
     </div>
   </div>
 </div>
+<nav class="bottombar">
+  <a href="/" class="<%= locals.nav==='dash'?'active':'' %>"><span class="ic">🏠</span><span>الرئيسية</span></a>
+  <% if (can('leads.view.own') || can('leads.view.all')) { %>
+  <a href="/leads" class="<%= locals.nav==='leads'?'active':'' %>"><span class="ic">👥</span><span>العملاء</span></a>
+  <% } %>
+  <% if (can('leads.create')) { %>
+  <a href="/leads/new" class="fab" aria-label="عميل جديد"><span class="ic">＋</span></a>
+  <% } %>
+  <a href="/notifications" class="<%= locals.nav==='notifications'?'active':'' %>"><span class="ic">🔔<% if ((locals.unreadCount||0)>0) { %><i class="bdot"><%= locals.unreadCount %></i><% } %></span><span>التنبيهات</span></a>
+  <button type="button" id="navToggle2"><span class="ic">☰</span><span>المزيد</span></button>
+</nav>
 <% } %>
 <div class="nav-overlay" id="navOverlay"></div>
 <script>
@@ -10,8 +21,10 @@ if ('serviceWorker' in navigator) {
 }
 (function () {
   var t = document.getElementById('navToggle');
+  var t2 = document.getElementById('navToggle2');
   var o = document.getElementById('navOverlay');
   if (t) t.addEventListener('click', function () { document.body.classList.toggle('nav-open'); });
+  if (t2) t2.addEventListener('click', function () { document.body.classList.toggle('nav-open'); });
   if (o) o.addEventListener('click', function () { document.body.classList.remove('nav-open'); });
   document.querySelectorAll('.sidebar nav a').forEach(function (a) {
     a.addEventListener('click', function () { document.body.classList.remove('nav-open'); });

@@ -85,9 +85,20 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--teal);bo
 .burger{display:none;background:none;border:none;font-size:22px;color:var(--teal-dark);cursor:pointer;padding:6px 8px;border-radius:8px;line-height:1}
 .burger:hover{background:var(--teal-050)}
 .nav-overlay{display:none;position:fixed;inset:0;background:rgba(0,40,45,.45);z-index:55}
+.bottombar{display:none}
 
 @media(max-width:860px){
-  .burger{display:block}
+  .burger{display:none}
+  .topbar{position:sticky;top:0;z-index:50;backdrop-filter:blur(8px);background:rgba(255,255,255,.92);box-shadow:0 1px 0 rgba(0,0,0,.06)}
+  .content{padding-bottom:92px}
+  .bottombar{display:flex;position:fixed;bottom:0;left:0;right:0;z-index:56;background:#fff;border-top:1px solid var(--line,#e5ecec);padding:6px 4px calc(6px + env(safe-area-inset-bottom));box-shadow:0 -2px 12px rgba(0,40,45,.06)}
+  .bottombar a,.bottombar button{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;background:none;border:none;font:inherit;font-size:11px;color:#6b7f80;text-decoration:none;padding:6px 2px;border-radius:10px;cursor:pointer;min-height:48px;justify-content:center}
+  .bottombar .ic{font-size:20px;line-height:1;position:relative}
+  .bottombar a.active{color:var(--teal-dark,#0b6b63);font-weight:700}
+  .bottombar a.active .ic{transform:scale(1.08)}
+  .bottombar .bdot{position:absolute;top:-4px;left:-8px;background:#e4572e;color:#fff;font-size:10px;font-style:normal;min-width:16px;height:16px;border-radius:8px;display:flex;align-items:center;justify-content:center;padding:0 3px}
+  .bottombar a.fab{flex:0 0 auto;margin:-22px 6px 0;width:56px;height:56px;border-radius:50%;background:var(--orange,#f5862d);color:#fff;box-shadow:0 4px 12px rgba(245,134,45,.4);font-size:26px}
+  .bottombar a.fab .ic{color:#fff;font-size:28px;font-weight:700}
   .sidebar{position:fixed;top:0;right:0;width:250px;height:100dvh;z-index:60;transform:translateX(100%);transition:transform .22s ease;box-shadow:-8px 0 24px rgba(0,0,0,.18)}
   body.nav-open .sidebar{transform:translateX(0)}
   body.nav-open .nav-overlay{display:block}
