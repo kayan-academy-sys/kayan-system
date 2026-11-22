@@ -14,7 +14,7 @@
       <td><a href="/orders/<%= i.order_id %>">#<%= i.order_id %></a></td>
       <td><%= i.seq %></td><td><%= Number(i.amount).toLocaleString('ar-EG') %></td>
       <td><%= new Date(i.due_date).toLocaleDateString('ar-EG') %></td>
-      <td class="muted"><%= new Date(i.original_due_date).toLocaleDateString('ar-EG') %><%= i.postpone_reason ? ' (' + i.postpone_reason + ')' : '' %></td>
+      <td class="muted"><%= new Date(i.original_due_date).toLocaleDateString('ar-EG') %><% if (i.postpone_reason) { %><div class="muted" style="font-size:12px">(<%= i.postpone_reason %>)</div><% } %></td>
       <td><%= Number(i.paid).toLocaleString('ar-EG') %></td>
       <td><span class="badge <%= i.status==='paid'?'green':isLate?'red':'teal' %>"><%= i.status==='paid'?'مسدد':isLate?'متأخر':'قادم' %></span></td>
       <td class="flex">
