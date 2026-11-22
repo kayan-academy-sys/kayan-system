@@ -155,7 +155,7 @@ async function answer(question, user) {
       const c = rows[0];
       const seeAllLeads = rc('leads.view.all'), seeAllOrders = rc('orders.view.all');
       const leads = (await q(`SELECT l.status, co.name AS course FROM leads l LEFT JOIN courses co ON co.id=l.course_id WHERE l.customer_id=$1${seeAllLeads ? '' : ' AND (l.assigned_to=$2 OR l.created_by=$2)'} ORDER BY l.id DESC`, seeAllLeads ? [c.id] : [c.id, user.id])).rows;
-      const orders = (await q(`SELECT o.id, o.total, o.status FROM sales_orders o WHERE o.customer_id=$1${seeAllOrders ? '' : ' AND o.sales_user_id=$2'} ORDER BY o.id DESC`, seeAllOrders ? [c.id] : [c.id, user.id])).rows;
+      const orders = (await q(`SELECT o.id, o.total_price AS total, o.status FROM sales_orders o WHERE o.customer_id=$1${seeAllOrders ? '' : ' AND o.sales_user_id=$2'} ORDER BY o.id DESC`, seeAllOrders ? [c.id] : [c.id, user.id])).rows;
       const scoped = !(seeAllLeads && seeAllOrders);
       return `العميل: ${c.name} (${c.phone})${scoped ? '\n(تُعرض بياناته ضمن نطاق صلاحياتك فقط)' : ''}\nالفرص:\n` + (leads.map(l => `• ${l.course || 'غير محدد'} — ${l.status}`).join('\n') || 'لا توجد فرص ضمن نطاقك')
         + '\nالحجوزات:\n' + (orders.map(o => `• حجز #${o.id} — ${Number(o.total).toLocaleString('ar-EG')} ج.م — ${o.status}`).join('\n') || 'لا توجد حجوزات ضمن نطاقك');
