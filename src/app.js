@@ -4,9 +4,18 @@ const cookieSession = require('cookie-session');
 const config = require('./config');
 const { loadUser, csrfCheck } = require('./middleware/auth');
 
+const fs = require('fs');
+// Resolve asset dirs across runtimes (Render: src/; Netlify bundled function: cwd or ../../src)
+function firstExisting() {
+  for (const p of arguments) { try { if (fs.existsSync(p)) return p; } catch (_) {} }
+  return arguments[0];
+}
+const VIEWS_DIR = firstExisting(path.join(__dirname, 'views'), path.join(process.cwd(), 'src/views'), path.join(__dirname, '..', '..', 'src', 'views'));
+const PUBLIC_DIR = firstExisting(path.join(__dirname, 'public'), path.join(process.cwd(), 'src/public'), path.join(__dirname, '..', '..', 'src', 'public'));
+
 const app = express();
 app.set('view engine', 'ejs');
-app.set('views', path.join(__dirname, 'views'));
+app.set('views', VIEWS_DIR);
 app.set('trust proxy', true);
 app.disable('x-powered-by');
 
@@ -29,7 +38,7 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use('/static', express.static(path.join(__dirname, 'public'), { maxAge: '7d' }));
+app.use('/static', express.static(PUBLIC_DIR, { maxAge: '7d' }));
 
 // ملفات PWA في الجذر: الـ Service Worker يحتاج نطاق / ليعمل على كل الصفحات
 app.get('/sw.js', (req, res) => {

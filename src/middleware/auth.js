@@ -49,18 +49,23 @@ function csrfCheck(req, res, next) {
 }
 
 // حد بسيط لمحاولات الدخول
-const attempts = new Map();
-function loginRateLimit(req, res, next) {
-  const key = req.ip + '|' + (req.body.email || '');
-  const now = Date.now();
-  const rec = attempts.get(key) || { count: 0, reset: now + 10 * 60 * 1000 };
-  if (now > rec.reset) { rec.count = 0; rec.reset = now + 10 * 60 * 1000; }
-  if (rec.count >= 10) {
-    return res.status(429).render('error', { title: 'محاولات كثيرة', message: 'تم تجاوز عدد محاولات الدخول المسموح. انتظر 10 دقائق وحاول مجددًا.' });
-  }
-  rec.count++;
-  attempts.set(key, rec);
-  next();
+// DB-backed: atomic upsert, consistent across serverless instances and restarts.
+// Same policy as before: 10 attempts per 10 minutes per IP+email; the 11th is blocked.
+async function loginRateLimit(req, res, next) {
+  try {
+    const key = req.ip + '|' + (req.body.email || '');
+    const { rows } = await q(
+      `INSERT INTO login_attempts (key, count, reset_at)
+       VALUES ($1, 1, now() + interval '10 minutes')
+       ON CONFLICT (key) DO UPDATE SET
+         count = CASE WHEN login_attempts.reset_at < now() THEN 1 ELSE login_attempts.count + 1 END,
+         reset_at = CASE WHEN login_attempts.reset_at < now() THEN now() + interval '10 minutes' ELSE login_attempts.reset_at END
+       RETURNING count`, [key]);
+    if (rows[0].count > 10) {
+      return res.status(429).render('error', { title: 'محاولات كثيرة', message: 'تم تجاوز عدد محاولات الدخول المسموح. انتظر 10 دقائق وحاول مجددًا.' });
+    }
+    next();
+  } catch (e) { next(e); }
 }
 
 module.exports = { loadUser, requireAuth, requireCap, csrfCheck, loginRateLimit };

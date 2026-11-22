@@ -17,7 +17,8 @@
     "dotenv": "^18.0.10",
     "ejs": "^3.1.10",
     "express": "^4.21.2",
-    "pg": "^8.13.1"
+    "pg": "^8.13.1",
+    "serverless-http": "^3.2.0"
   },
   "devDependencies": {
     "supertest": "^7.0.0"
