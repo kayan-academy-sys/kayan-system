@@ -44,7 +44,28 @@ router.get('/:id', async (req, res) => {
     FROM sessions s LEFT JOIN users u ON u.id=s.postponed_by WHERE s.group_id=$1 ORDER BY s.session_date, s.start_time`, [group.id])).rows;
   const students = (await q(`SELECT e.id AS enrollment_id, cu.name, cu.phone, e.status, e.created_at FROM enrollments e JOIN customers cu ON cu.id=e.customer_id WHERE e.group_id=$1 AND e.status='active' ORDER BY cu.name`, [group.id])).rows;
   const booked = students.length;
-  res.render('groups/detail', { title: 'مجموعة ' + group.name, nav: 'groups', group, sessions, students, booked, available: group.capacity - booked, canManage: can(req.user.role, 'groups.manage') });
+  // تسجيلات نشطة لنفس الكورس لم تُحدد مجموعتها بعد — لإلحاقها بهذه المجموعة من هنا
+  let unassigned = [];
+  if (can(req.user.role, 'groups.manage') && ['open','nearly_full'].includes(group.status)) {
+    unassigned = (await q(`SELECT e.id AS enrollment_id, cu.name, cu.phone, o.id AS order_id
+      FROM enrollments e JOIN customers cu ON cu.id=e.customer_id JOIN sales_orders o ON o.id=e.order_id AND o.status='approved'
+      WHERE e.course_id=$1 AND e.group_id IS NULL AND e.status='active' ORDER BY cu.name`, [group.course_id])).rows;
+  }
+  res.render('groups/detail', { title: 'مجموعة ' + group.name, nav: 'groups', group, sessions, students, booked, available: group.capacity - booked, canManage: can(req.user.role, 'groups.manage'), unassigned });
+});
+
+// إلحاق تسجيل غير محدد المجموعة بهذه المجموعة (صلاحية إدارة المجموعات + فحص السعة)
+router.post('/:id/enroll', requireCap('groups.manage'), async (req, res) => {
+  const group = (await q(`SELECT * FROM groups WHERE id=$1 AND status IN ('open','nearly_full')`, [req.params.id])).rows[0];
+  if (!group) return res.status(404).render('error', { title: 'غير موجودة', message: 'المجموعة غير موجودة أو غير متاحة للحجز.' });
+  const e = (await q(`SELECT e.* FROM enrollments e JOIN sales_orders o ON o.id=e.order_id AND o.status='approved'
+    WHERE e.id=$1 AND e.course_id=$2 AND e.group_id IS NULL AND e.status='active'`, [req.body.enrollment_id, group.course_id])).rows[0];
+  if (!e) return res.status(400).render('error', { title: 'غير صالح', message: 'التسجيل غير موجود أو حُددت مجموعته بالفعل.' });
+  const cnt = (await q(`SELECT count(*) AS n FROM enrollments WHERE group_id=$1 AND status='active'`, [group.id])).rows[0].n;
+  if (parseInt(cnt, 10) >= group.capacity) return res.status(409).render('error', { title: 'مكتملة', message: 'المجموعة مكتملة العدد.' });
+  await q('UPDATE enrollments SET group_id=$1 WHERE id=$2', [group.id, e.id]);
+  await audit(req, 'enrollment_group_assigned', 'enrollment', e.id, { group_id: group.id, order_id: e.order_id });
+  res.redirect('/groups/' + group.id);
 });
 
 router.post('/:id/edit', requireCap('groups.manage'), async (req, res) => {

@@ -43,6 +43,15 @@
       <% }) %>
       <% if (!students.length) { %><tr><td colspan="3" class="muted">لا يوجد طلاب بعد.</td></tr><% } %>
     </table>
+    <% if (canManage && unassigned && unassigned.length) { %>
+    <details class="mt"><summary class="btn sm">+ إلحاق طالب محجوز بلا مجموعة (<%= unassigned.length %>)</summary>
+      <form method="post" action="/groups/<%= group.id %>/enroll" class="form-row mt">
+        <input type="hidden" name="_csrf" value="<%= csrf %>">
+        <select name="enrollment_id"><% unassigned.forEach(u => { %><option value="<%= u.enrollment_id %>"><%= u.name %> — <%= u.phone %> (حجز #<%= u.order_id %>)</option><% }) %></select>
+        <button class="btn sm">إلحاق بالمجموعة</button>
+      </form>
+    </details>
+    <% } %>
   </div>
 </div>
 <div class="card">
