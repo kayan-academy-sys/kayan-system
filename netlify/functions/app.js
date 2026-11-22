@@ -1,5 +1,6 @@
 // Netlify serverless entry: wraps the same Express app (no route changes).
 process.env.RUN_CRON = 'false'; // scheduler never runs inside a function; external cron hits /cron/run
+process.env.NODE_ENV = process.env.NODE_ENV || 'production'; // set in code: marking it a secret env var trips Netlify's secret scanner (the word appears in source)
 const crypto = require('crypto');
 const serverless = require('serverless-http');
 const app = require('../../src/app');
