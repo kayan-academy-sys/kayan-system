@@ -5,6 +5,8 @@ const { audit } = require('../lib/audit');
 const { can } = require('../lib/permissions');
 const { accountBalances } = require('../lib/balances');
 
+const validMoney=v=>/^\d+(?:\.\d{1,2})?$/.test(String(v))&&Number.isFinite(Number(v))&&Number(v)>0&&Number(v)<1e10;
+const validDate=v=>/^\d{4}-\d{2}-\d{2}$/.test(String(v))&&!Number.isNaN(Date.parse(v))&&new Date(v).toISOString().slice(0,10)===v;
 const router = express.Router();
 router.use(requireAuth, requireCap('payments.view', 'payments.create', 'expenses.view', 'expenses.create', 'accounts.view'));
 
@@ -339,10 +341,11 @@ router.get('/expenses', async (req, res) => {
 
 router.post('/expenses', requireCap('expenses.create'), async (req, res) => {
   const { type_id, amount, expense_date, account_id, notes } = req.body;
-  const amt = parseFloat(amount);
-  if (!type_id || !amt || amt <= 0 || !expense_date || !account_id) {
+  const amt = Number(amount);
+  if (!type_id || !validMoney(amount) || !validDate(expense_date) || !account_id) {
     return res.status(400).render('error', { title: 'بيانات غير صالحة', message: 'تأكد من نوع المصروف والقيمة والتاريخ والحساب.' });
   }
+  if(!(await q('SELECT id FROM financial_accounts WHERE id=$1 AND active=TRUE',[account_id])).rowCount||!(await q('SELECT id FROM expense_types WHERE id=$1',[type_id])).rowCount)return res.status(400).render('error',{title:'بيانات غير صالحة',message:'نوع المصروف أو الحساب غير متاح.'});
   const ins = await q('INSERT INTO expenses (type_id, amount, expense_date, account_id, recorded_by, notes) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id',
     [type_id, amt, expense_date, account_id, req.user.id, notes || null]);
   await audit(req, 'expense_created', 'expense', ins.rows[0].id, { type_id, amount: amt });
@@ -377,10 +380,11 @@ router.get('/transfers', requireCap('transfers.view', 'transfers.create', 'accou
 
 router.post('/transfers', requireCap('transfers.create'), async (req, res) => {
   const { from_account_id, to_account_id, amount, transfer_date, notes } = req.body;
-  const amt = parseFloat(amount);
-  if (!from_account_id || !to_account_id || from_account_id === to_account_id || !amt || amt <= 0 || !transfer_date) {
+  const amt = Number(amount);
+  if (!from_account_id || !to_account_id || Number(from_account_id) === Number(to_account_id) || !validMoney(amount) || !validDate(transfer_date)) {
     return res.status(400).render('error', { title: 'بيانات غير صالحة', message: 'تأكد من الحسابين والمبلغ والتاريخ.' });
   }
+  if((await q('SELECT id FROM financial_accounts WHERE id=ANY($1::int[]) AND active=TRUE',[[from_account_id,to_account_id]])).rowCount!==2)return res.status(400).render('error',{title:'بيانات غير صالحة',message:'الحسابان غير متاحين للتحويل.'});
   const ins = await q('INSERT INTO transfers (from_account_id, to_account_id, amount, transfer_date, notes, recorded_by) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id',
     [from_account_id, to_account_id, amt, transfer_date, notes || null, req.user.id]);
   await audit(req, 'transfer_created', 'transfer', ins.rows[0].id, { from_account_id, to_account_id, amount: amt });
