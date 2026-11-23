@@ -19,7 +19,7 @@
       <form method="post" action="/orders/<%= order.id %>/cancel" class="mt">
         <input type="hidden" name="_csrf" value="<%= csrf %>">
         <label>سبب الإلغاء *</label><input name="reason" required>
-        <button class="btn danger sm mt">تأكيد الإلغاء</button>
+        <label><input type="checkbox" name="confirm_cancel" value="yes" required> أؤكد إلغاء هذا الحجز. الإلغاء لا يرد أموالًا.</label><button class="btn danger sm mt">تأكيد الإلغاء</button>
       </form>
     </details>
     <p class="muted">المدفوعات النشطة لا تُحذف؛ تُدار بالإلغاء/العكس المالي من قسم الحسابات.</p>
