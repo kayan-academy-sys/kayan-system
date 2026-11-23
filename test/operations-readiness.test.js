@@ -25,3 +25,17 @@ test('ordinary sales denied accounting, backup, finance report and user manageme
  const a=await loginAgent('s1@test');
  for(const path of ['/admin/backup','/admin/backup/download','/admin/users','/accounting','/accounting/expenses','/accounting/transfers','/reports/finance'])assert.equal((await a.agent.get(path)).status,403,path);
 });
+test('expense reversal and internal transfer preserve treasury arithmetic and audit history',async()=>{
+ const a=await loginAgent('am@test');const {accountBalances}=require('../src/lib/balances');
+ const before=await accountBalances();const b=id=>Number(before.find(x=>x.id===id).balance);
+ const type=(await q('SELECT id FROM expense_types LIMIT 1')).rows[0].id;
+ assert.equal((await a.withCsrf('post','/accounting/expenses',{type_id:type,amount:'40.25',expense_date:'2026-11-23',account_id:1,notes:'fictional local acceptance'})).status,302);
+ const e=(await q('SELECT id FROM expenses ORDER BY id DESC LIMIT 1')).rows[0];
+ assert.equal(Number((await accountBalances()).find(x=>x.id===1).balance),b(1)-40.25);
+ assert.equal((await a.withCsrf('post',`/accounting/expenses/${e.id}/void`,{reason:'local test reversal'})).status,302);
+ assert.equal(Number((await accountBalances()).find(x=>x.id===1).balance),b(1));
+ assert.equal((await a.withCsrf('post','/accounting/transfers',{from_account_id:1,to_account_id:2,amount:'20.50',transfer_date:'2026-11-23'})).status,302);
+ const after=await accountBalances();assert.equal(Number(after.find(x=>x.id===1).balance),b(1)-20.5);assert.equal(Number(after.find(x=>x.id===2).balance),b(2)+20.5);
+ assert.equal(after.reduce((s,x)=>s+Number(x.balance),0),before.reduce((s,x)=>s+Number(x.balance),0));
+ assert.equal((await q("SELECT count(*) AS n FROM audit_log WHERE action IN ('expense_created','expense_voided','transfer_created')")).rows[0].n,'3');
+});
