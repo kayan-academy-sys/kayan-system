@@ -221,18 +221,26 @@ test('class assignment serializes last seat; attendance rejects cross-group, can
  const {assignGroup}=require('../src/lib/group-assignment');
  const result=await Promise.allSettled(rows.slice(0,2).map(e=>assignGroup({groupId:gid,enrollmentId:e.id})));
  assert.equal(result.filter(x=>x.status==='fulfilled').length,1);assert.equal(result.filter(x=>x.status==='rejected'&&x.reason.status===409).length,1);
- const eid=(await q('SELECT id FROM enrollments WHERE group_id=$1',[gid])).rows[0].id;
+ const adminClass=await loginAgent('admin@test');
+ const edit={name:'فصل وهمي لسعة وحضور',capacity:'0',status:'open'};
+ assert.equal((await adminClass.withCsrf('post',`/groups/${gid}/edit`,edit)).status,400);
+ const third=rows.find(x=>!result[rows.indexOf(x)]||result[rows.indexOf(x)].status==='rejected');
+ await q('UPDATE groups SET capacity=2 WHERE id=$1',[gid]);await assignGroup({groupId:gid,enrollmentId:third.id});
+ assert.equal((await adminClass.withCsrf('post',`/groups/${gid}/edit`,{...edit,capacity:'1'})).status,409);
+ const eid=(await q('SELECT id FROM enrollments WHERE group_id=$1 ORDER BY id LIMIT 1',[gid])).rows[0].id;
+
  assert.equal((await assignGroup({groupId:gid,enrollmentId:eid})).duplicate,true);
  const sid=(await q("INSERT INTO sessions(group_id,session_date,start_time,end_time) VALUES($1,current_date-1,'10:00','12:00') RETURNING id",[gid])).rows[0].id;
  const rc=await loginAgent('rc@test'),sales=await loginAgent('s1@test');
  assert.equal((await sales.withCsrf('post',`/reception/sessions/${sid}/attendance`,{['att_'+eid]:'present'})).status,403);
- const other=rows.find(x=>x.id!==eid).id;
+ const other=rows[2].id;
  assert.equal((await rc.withCsrf('post',`/reception/sessions/${sid}/attendance`,{['att_'+eid]:'present',['att_'+other]:'absent'})).status,400);
  assert.equal((await q('SELECT count(*) AS n FROM attendance WHERE session_id=$1',[sid])).rows[0].n,'0');
  assert.equal((await rc.withCsrf('post',`/reception/sessions/${sid}/attendance`,{['att_'+eid]:'absent'})).status,302);
  assert.equal((await rc.withCsrf('post',`/reception/sessions/${sid}/attendance`,{['att_'+eid]:'late', ['notes_'+eid]:'تصحيح وهمي'})).status,302);
  assert.equal((await q('SELECT status FROM attendance WHERE session_id=$1',[sid])).rows[0].status,'late');
  assert.equal((await q('SELECT count(*) AS n FROM attendance WHERE session_id=$1',[sid])).rows[0].n,'1');
+ const logs=(await q("SELECT details FROM audit_log WHERE action='attendance_recorded' AND entity_id=$1 ORDER BY id DESC LIMIT 1",[String(sid)])).rows[0].details;assert.equal(logs.previous[0].status,'absent');assert.equal(logs.updated[0].status,'late');
  await q("UPDATE sessions SET status='cancelled' WHERE id=$1",[sid]);assert.equal((await rc.withCsrf('post',`/reception/sessions/${sid}/attendance`,{['att_'+eid]:'present'})).status,409);
  await q("UPDATE sessions SET status='scheduled',session_date=current_date+1 WHERE id=$1",[sid]);assert.equal((await rc.withCsrf('post',`/reception/sessions/${sid}/attendance`,{['att_'+eid]:'present'})).status,400);
  await q('UPDATE sessions SET session_date=current_date-1 WHERE id=$1',[sid]);await q("UPDATE sales_orders SET status='cancelled' WHERE id=(SELECT order_id FROM enrollments WHERE id=$1)",[eid]);

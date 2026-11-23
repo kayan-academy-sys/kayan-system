@@ -1,6 +1,6 @@
 <%- include('../partials/top', {title, nav:'groups'}) %>
 <div class="grid c2">
-  <div class="card">
+  <div class="card" style="overflow-x:auto">
     <h2>بيانات المجموعة</h2>
     <table>
       <tr><th>المجموعة</th><td><%= group.name %></td></tr>
@@ -34,7 +34,7 @@
     </details>
     <% } %>
   </div>
-  <div class="card">
+  <div class="card" style="overflow-x:auto">
     <h2>الطلاب المسجلون (<%= booked %>)</h2>
     <table>
       <tr><th>الاسم</th><th>الهاتف</th><th>تاريخ التسجيل</th></tr>
@@ -54,7 +54,7 @@
     <% } %>
   </div>
 </div>
-<div class="card">
+<div class="card" style="overflow-x:auto">
   <div class="flex between" style="margin-bottom:10px"><h2 style="border:none;margin:0;padding:0">جدول المحاضرات</h2>
   <% if (canManage) { %>
   <details><summary class="btn sm">+ إضافة محاضرة</summary>
