@@ -22,3 +22,43 @@ test('receipt serials are unique; decimal pounds rejected; no financial mutation
  assert.equal((await q('SELECT count(*) AS c FROM expenses')).rows[0].c,'0');
  const rc=await loginAgent('rc@test');assert.equal((await rc.agent.get('/accounting/invoices')).status,403);
 });
+
+test('accounting confirms synthetic receipt exactly once; only attributed salesperson can read it',async()=>{
+ process.env.PREVIEW_GATE_REQUIRED='1';
+ // Gate disabled only within this isolated local test app via signed test gate cookie would be unnecessary;
+ // set it after draft creation for confirmation authorization, but middleware gate also needs bypass.
+ process.env.PREVIEW_GATE_REQUIRED='0';
+ const ids=(await q("SELECT id,email FROM users WHERE email IN ('s1@test','s2@test')")).rows;const s1=ids.find(x=>x.email==='s1@test').id;
+ const cust=(await q("INSERT INTO customers(name,phone) VALUES('عميل ربط وهمي','TST-ORDER') RETURNING id")).rows[0].id;
+ const course=(await q('SELECT id FROM courses LIMIT 1')).rows[0].id;
+ const order=(await q("INSERT INTO sales_orders(customer_id,kind,course_id,total_price,payment_type,sales_user_id,status) VALUES($1,'course',$2,1000,'cash',$3,'approved') RETURNING id",[cust,course,s1])).rows[0].id;
+ const a=await loginAgent('as@test');
+ const r=await a.withCsrf('post','/accounting/invoices',{customer_name:'لا يؤخذ هذا الاسم',purpose:'تجريبي',amount_pounds:'100',order_id:order});assert.equal(r.status,302);
+ const inv=(await q('SELECT * FROM invoices WHERE order_id=$1',[order])).rows[0];assert.equal(inv.customer_name,'عميل ربط وهمي');assert.equal(inv.sales_user_id,s1);
+ const before=(await q('SELECT count(*) AS c FROM notifications')).rows[0].c;
+ const sales=await loginAgent('s1@test');assert.equal((await sales.agent.get('/accounting/invoices/'+inv.id)).status,404);
+ assert.equal((await sales.withCsrf('post',`/accounting/invoices/${inv.id}/confirm`,{})).status,403);
+ // Local-only synthetic fixture and signed preview gate cookie, no live grant changes.
+ await q('UPDATE invoices SET synthetic=true WHERE id=$1',[inv.id]);
+ const crypto=require('crypto');process.env.PREVIEW_GATE_PASS='test-gate-only';process.env.PREVIEW_GATE_REQUIRED='1';
+ const ts=String(Date.now());const sig=crypto.createHmac('sha256','test-gate-only').update('kayan-gate-v1.'+ts).digest('hex');
+ a.agent.jar.setCookie('kayan_gate='+ts+'.'+sig+'; Path=/');sales.agent.jar.setCookie('kayan_gate='+ts+'.'+sig+'; Path=/');
+ try{
+  assert.equal((await a.withCsrf('post',`/accounting/invoices/${inv.id}/confirm`,{})).status,302);
+  assert.equal((await a.withCsrf('post',`/accounting/invoices/${inv.id}/confirm`,{})).status,302);
+  assert.equal(Number((await q('SELECT count(*) AS c FROM notifications')).rows[0].c),Number(before)+1);
+  assert.equal((await sales.agent.get('/accounting/invoices/'+inv.id)).status,200);
+ }finally{process.env.PREVIEW_GATE_REQUIRED='0';delete process.env.PREVIEW_GATE_PASS;}
+ const other=await loginAgent('s2@test');assert.equal((await other.agent.get('/accounting/invoices/'+inv.id)).status,404);
+});
+
+test('failed delivery transaction leaves draft and no notification',async()=>{
+ const inv=(await q("SELECT * FROM invoices WHERE status='confirmed' LIMIT 1")).rows[0];
+ const id=(await q("INSERT INTO invoices(customer_name,amount_pounds,purpose,terms,terms_version,order_id,sales_user_id,synthetic) VALUES('وهمي',50,'اختبار','بنود',1,$1,$2,true) RETURNING id",[inv.order_id,inv.sales_user_id])).rows[0].id;
+ const a=await loginAgent('as@test');process.env.PREVIEW_GATE_REQUIRED='1';process.env.PREVIEW_GATE_PASS='test-gate-only';
+ const crypto=require('crypto'),ts=String(Date.now()),sig=crypto.createHmac('sha256','test-gate-only').update('kayan-gate-v1.'+ts).digest('hex');a.agent.jar.setCookie('kayan_gate='+ts+'.'+sig+'; Path=/');
+ await q(`CREATE FUNCTION test_reject_notification() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'fixture failure'; END; $$`);
+ await q('CREATE TRIGGER test_reject_notification BEFORE INSERT ON notifications FOR EACH ROW EXECUTE FUNCTION test_reject_notification()');
+ try{assert.equal((await a.withCsrf('post',`/accounting/invoices/${id}/confirm`,{})).status,500);assert.equal((await q('SELECT status FROM invoices WHERE id=$1',[id])).rows[0].status,'draft');}
+ finally{await q('DROP TRIGGER test_reject_notification ON notifications');await q('DROP FUNCTION test_reject_notification()');process.env.PREVIEW_GATE_REQUIRED='0';delete process.env.PREVIEW_GATE_PASS;}
+});
