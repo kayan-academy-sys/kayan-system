@@ -185,3 +185,28 @@ test('linked expense cannot be voided independently; failed linked void rolls ba
   assert.equal((await q('SELECT status FROM expenses WHERE id=$1',[p.expense_id])).rows[0].status,'active');
  } finally {await q('DROP TRIGGER test_reject_void ON expenses');await q('DROP FUNCTION test_reject_void()');}
 });
+
+test('preview fixture is the only payout permitted with global gate off',async()=>{
+ process.env.TRAINER_WRITES_APPROVED='false';process.env.PREVIEW_GATE_REQUIRED='0';
+ try{
+  const admin=await loginAgent('admin@test');
+  const staff=await loginAgent('as@test');
+  process.env.PREVIEW_GATE_REQUIRED='1';process.env.PREVIEW_GATE_PASS='test-fixture-only';
+  const ts=String(Date.now());const sig=require('crypto').createHmac('sha256','test-fixture-only').update('kayan-gate-v1.'+ts).digest('hex');
+  for(const a of [admin,staff])a.agent.jar.setCookie('kayan_gate='+ts+'.'+sig+'; Path=/');
+  assert.equal((await staff.withCsrf('post','/accounting/trainers/preview-fixture',{})).status,403);
+  assert.equal((await admin.withCsrf('post','/accounting/trainers/preview-fixture',{})).status,302);
+  const f=(await q('SELECT * FROM trainer_preview_fixture WHERE id=1')).rows[0];
+  const body={trainer_id:f.trainer_id,group_id:f.group_id,account_id:f.account_id,amount:'200',method:'cash',synthetic:'on'};
+  assert.equal((await staff.withCsrf('post','/accounting/trainers/payments',{...body,synthetic:''})).status,409);
+  assert.equal((await staff.withCsrf('post','/accounting/trainers/payments',{...body,account_id:1})).status,409);
+  assert.equal((await staff.withCsrf('post','/accounting/trainers/payments',body)).status,302);
+  assert.equal(await bal(f.account_id),-200);
+  const p=(await q('SELECT * FROM trainer_payments WHERE trainer_id=$1',[f.trainer_id])).rows[0];
+  assert.equal((await admin.withCsrf('post',`/accounting/trainers/payments/${p.id}/void`,{reason:'وهمي'})).status,302);
+  assert.equal(await bal(f.account_id),0);
+  assert.equal((await q('SELECT status FROM expenses WHERE id=$1',[p.expense_id])).rows[0].status,'voided');
+  process.env.PREVIEW_GATE_REQUIRED='0';
+  assert.equal((await staff.withCsrf('post','/accounting/trainers/payments',body)).status,409);
+ }finally{process.env.TRAINER_WRITES_APPROVED='true';delete process.env.PREVIEW_GATE_REQUIRED;delete process.env.PREVIEW_GATE_PASS;}
+});

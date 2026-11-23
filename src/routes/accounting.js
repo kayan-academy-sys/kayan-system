@@ -69,6 +69,22 @@ router.post('/closings', requireCap('closings.manage'), async (req, res) => {
 // المسار البديل جاهز: إذا اعتمد المالك الدفعات المقدمة صراحة يُغيَّر هذا الثابت إلى true فتُسمح بها.
 const ALLOW_TRAINER_ADVANCES = false;
 
+// This setup creates only new fictional rows, never reclassifies existing records.
+router.post('/trainers/preview-fixture', async(req,res)=>{
+ if(process.env.PREVIEW_GATE_REQUIRED!=='1'||req.user.role!=='admin')return res.status(403).render('error',{title:'غير مسموح',message:'اختبار المعاينة لمسؤول النظام فقط.'});
+ await tx(async c=>{
+  await c.query('LOCK TABLE trainer_preview_fixture IN EXCLUSIVE MODE');
+  if((await c.query('SELECT id FROM trainer_preview_fixture')).rowCount)return;
+  const t=(await c.query("INSERT INTO trainers(name) VALUES('محاضر وهمي - قبول ربط المصروف') RETURNING id")).rows[0].id;
+  const course=(await c.query("INSERT INTO courses(name,base_price) VALUES('كورس وهمي - قبول المحاضر',0) RETURNING id")).rows[0].id;
+  const g=(await c.query("INSERT INTO groups(course_id,trainer_id,name,status,created_by) VALUES($1,$2,'SYNTHETIC-TRAINER-ACCEPTANCE','finished',$3) RETURNING id",[course,t,req.user.id])).rows[0].id;
+  const a=(await c.query("INSERT INTO financial_accounts(name,type) VALUES('خزنة وهمية معزولة - قبول المحاضر','cash') RETURNING id")).rows[0].id;
+  await c.query('INSERT INTO trainer_group_terms(group_id,trainer_id,agreed_amount,notes,created_by) VALUES($1,$2,1000,$3,$4)',[g,t,'وهمي فقط، لا مستحقات حقيقية',req.user.id]);
+  await c.query('INSERT INTO trainer_preview_fixture(id,trainer_id,group_id,account_id,created_by) VALUES(1,$1,$2,$3,$4)',[t,g,a,req.user.id]);
+ });
+ await audit(req,'trainer_preview_fixture_ready','trainer_preview_fixture',1,{synthetic:true});
+ res.redirect('/accounting/trainers');
+});
 // حساب المحاضرين — مبلغ متفق عليه لكل مجموعة يُستحق عند انتهائها (حالة finished)
 router.get('/trainers', async (req, res) => {
   const { rows } = await q(`SELECT t.id AS trainer_id, t.name AS trainer_name, t.status AS trainer_status,
@@ -117,7 +133,10 @@ router.get('/trainers', async (req, res) => {
   const totals = list.reduce((a, T) => ({ agreed: a.agreed + T.agreedTotal, earned: a.earned + T.earned, paid: a.paid + T.paid }), { agreed: 0, earned: 0, paid: 0 });
   totals.balance = totals.earned - totals.paid;
   const accounts = (await q('SELECT * FROM financial_accounts WHERE active=TRUE ORDER BY id')).rows;
-  res.render('accounting/trainers', { title: 'حساب المحاضرين', nav: 'trainer-accounts', list, totals, pays, accounts, canManage: can(req.user.roles, 'expenses.create'), canVoid: can(req.user.roles, 'expenses.void') });
+  const fixture=process.env.PREVIEW_GATE_REQUIRED==='1'?(await q('SELECT * FROM trainer_preview_fixture WHERE id=1')).rows[0]:null;
+  const fixtureBalance=fixture?(await accountBalances()).find(a=>a.id===fixture.account_id)?.balance:null;
+  const fixtureProof=fixture?(await q("SELECT p.id,p.amount,p.status,p.expense_id,e.status AS expense_status FROM trainer_payments p JOIN expenses e ON e.id=p.expense_id WHERE p.trainer_id=$1 ORDER BY p.id DESC",[fixture.trainer_id])).rows:[];
+  res.render('accounting/trainers', { fixture,fixtureBalance,fixtureProof,title: 'حساب المحاضرين', nav: 'trainer-accounts', list, totals, pays, accounts, canManage: can(req.user.roles, 'expenses.create'), canVoid: can(req.user.roles, 'expenses.void') });
 });
 
 // تحديد/تعديل المبلغ المتفق عليه لمجموعة
@@ -136,10 +155,11 @@ router.post('/trainers/terms', requireCap('expenses.create'), async (req, res) =
 
 // تسجيل دفعة لمحاضر — تُنشئ مصروفًا مرتبطًا في نفس المعاملة فيخصم من الحساب المختار
 router.post('/trainers/payments', requireCap('expenses.create'), async (req, res) => {
-  if (process.env.TRAINER_WRITES_APPROVED !== 'true') return res.status(409).render('error', {title:'معاينة فقط', message:'تسجيل دفعات المحاضرين موقوف مؤقتًا لحين اكتمال التحقق.'});
+  const synthetic=req.body.synthetic==='on'&&process.env.PREVIEW_GATE_REQUIRED==='1';
+  if (process.env.TRAINER_WRITES_APPROVED !== 'true'&&!synthetic) return res.status(409).render('error', {title:'معاينة فقط', message:'تسجيل دفعات المحاضرين موقوف مؤقتًا لحين اكتمال التحقق.'});
   const amount = parseFloat(req.body.amount);
   const method = req.body.method;
-  if (!(amount > 0) || !['cash','bank_transfer','instapay','wallet'].includes(method) || !req.body.account_id) {
+  if (!/^\d+(?:\.\d{1,2})?$/.test(String(req.body.amount)) || !(amount > 0) || !['cash','bank_transfer','instapay','wallet'].includes(method) || !req.body.account_id) {
     return res.status(400).render('error', { title: 'بيانات غير صالحة', message: 'تأكد من المبلغ وطريقة الدفع والحساب.' });
   }
   const t = (await q('SELECT id, name FROM trainers WHERE id=$1', [req.body.trainer_id])).rows[0];
@@ -152,6 +172,12 @@ router.post('/trainers/payments', requireCap('expenses.create'), async (req, res
   try {
     const paymentId = await tx(async (c) => {
       await c.query('SELECT id FROM trainers WHERE id=$1 FOR UPDATE', [t.id]);
+      const fixture=(await c.query('SELECT * FROM trainer_preview_fixture WHERE id=1 FOR SHARE')).rows[0];
+      if(synthetic){
+       const g=(await c.query('SELECT * FROM groups WHERE id=$1 FOR SHARE',[groupId])).rows[0];
+       if(!fixture||fixture.trainer_id!==t.id||fixture.group_id!==Number(groupId)||fixture.account_id!==Number(req.body.account_id)||!g||g.trainer_id!==t.id||g.status!=='finished'||method!=='cash')throw Object.assign(new Error('الاختبار الوهمي يتطلب المحاضر والمجموعة المنتهية والخزنة المعزولة المحددة فقط.'),{status:409});
+      }else if(fixture&&(fixture.trainer_id===t.id||fixture.group_id===Number(groupId)||fixture.account_id===Number(req.body.account_id))){throw Object.assign(new Error('سجلات الاختبار المعزولة تتطلب علامة وهمي.'),{status:409});}
+
   if (!ALLOW_TRAINER_ADVANCES) {
     const earned = parseFloat((await c.query(`SELECT COALESCE(sum(tm.agreed_amount),0) AS s FROM trainer_group_terms tm JOIN groups g ON g.id=tm.group_id WHERE tm.trainer_id=$1 AND g.status='finished'`, [t.id])).rows[0].s);
     const paid = parseFloat((await c.query(`SELECT COALESCE(sum(amount),0) AS s FROM trainer_payments WHERE trainer_id=$1 AND status='active'`, [t.id])).rows[0].s);
