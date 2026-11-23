@@ -18,6 +18,8 @@ async function resetDb() {
 }
 
 async function seedUsers() {
+  await q("INSERT INTO financial_accounts(id,name,type) VALUES(1,'الخزينة','cash'),(2,'البنك','bank') ON CONFLICT DO NOTHING");
+  await q("SELECT setval(pg_get_serial_sequence('financial_accounts','id'),GREATEST((SELECT max(id) FROM financial_accounts),2))");
   const hash = await bcrypt.hash('pass12345', 4);
   const mk = async (name, email, role) => (await q('INSERT INTO users (name,email,password_hash,role) VALUES ($1,$2,$3,$4) RETURNING id', [name, email, hash, role])).rows[0].id;
   return {

@@ -168,3 +168,14 @@ test('manual JSON export is a complete transactional snapshot restricted to back
  assert.equal(r.body.tables.payments.length,Number((await q('SELECT count(*) AS n FROM payments')).rows[0].n));
  assert.ok(r.body.tables.users);assert.ok(r.body.tables.invoices);assert.ok(r.headers['content-disposition'].includes('attachment'));
 });
+
+test('opening balance is privileged once-only setup, not revenue; existing movements block it',async()=>{
+ const mgr=await loginAgent('am@test'),staff=await loginAgent('as@test');
+ const id=(await q("INSERT INTO financial_accounts(name,type) VALUES('افتتاح وهمي','cash') RETURNING id")).rows[0].id;
+ assert.equal((await staff.withCsrf('post',`/accounting/accounts/${id}/opening`,{amount:'500',notes:'no'})).status,403);
+ const pair=await Promise.all([mgr.withCsrf('post',`/accounting/accounts/${id}/opening`,{amount:'500.25',notes:'مطابقة وهمية'}),mgr.withCsrf('post',`/accounting/accounts/${id}/opening`,{amount:'500.25',notes:'تكرار'})]);assert.deepEqual(pair.map(x=>x.status).sort(),[302,409]);
+ const {accountBalances}=require('../src/lib/balances');assert.equal(Number((await accountBalances()).find(x=>x.id===id).balance),500.25);
+ assert.equal((await q('SELECT count(*) AS n FROM payments WHERE account_id=$1',[id])).rows[0].n,'0');
+ const active=(await q('SELECT account_id FROM payments LIMIT 1')).rows[0].account_id;
+ assert.equal((await mgr.withCsrf('post',`/accounting/accounts/${active}/opening`,{amount:'100',notes:'late'})).status,409);
+});

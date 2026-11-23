@@ -28,7 +28,26 @@ router.get('/', async (req, res) => {
   const balances = await accountBalances();
   const closingToday = (await q('SELECT * FROM daily_closings WHERE closing_date=current_date')).rows[0] || null;
   const closings = (await q('SELECT c.*, u.name AS closed_by_name FROM daily_closings c LEFT JOIN users u ON u.id=c.closed_by ORDER BY closing_date DESC LIMIT 14')).rows;
-  res.render('accounting/dashboard', { title: 'لوحة الحسابات', nav: 'accounting', totals, outstanding, inst, byChannel, balances, closingToday, closings, canClose: can(req.user.roles, 'closings.manage') });
+  res.render('accounting/dashboard', { title: 'لوحة الحسابات', nav: 'accounting', totals, outstanding, inst, byChannel, balances, closingToday, closings, canManageAccounts:can(req.user.roles,'accounts.manage'),canClose: can(req.user.roles, 'closings.manage') });
+});
+
+// Opening balances: one-time setup before the first movement, never a fake collection.
+router.get('/accounts',requireCap('accounts.manage'),async(req,res)=>{
+ const rows=(await q(`SELECT a.*,(EXISTS(SELECT 1 FROM payments p WHERE p.account_id=a.id) OR EXISTS(SELECT 1 FROM expenses e WHERE e.account_id=a.id) OR EXISTS(SELECT 1 FROM transfers t WHERE t.from_account_id=a.id OR t.to_account_id=a.id)) AS has_movements FROM financial_accounts a ORDER BY a.id`)).rows;
+ res.render('accounting/accounts',{title:'إعداد الحسابات والأرصدة الافتتاحية',nav:'accounting',rows});
+});
+router.post('/accounts/:id/opening',requireCap('accounts.manage'),async(req,res)=>{
+ const {amount,notes}=req.body;
+ if(!/^-?\d+(?:\.\d{1,2})?$/.test(String(amount))||!notes?.trim())return res.status(400).render('error',{title:'بيانات ناقصة',message:'أدخل رصيدًا بدقة قرش ومرجع المراجعة.'});
+ try{await tx(async c=>{
+  await c.query('LOCK TABLE payments,expenses,transfers IN SHARE ROW EXCLUSIVE MODE');
+  const a=(await c.query('SELECT * FROM financial_accounts WHERE id=$1 FOR UPDATE',[req.params.id])).rows[0];
+  if(!a||a.opening_set_at)throw Object.assign(new Error('الحساب غير موجود أو تم اعتماد رصيده الافتتاحي بالفعل.'),{status:409});
+  const exists=(await c.query(`SELECT EXISTS(SELECT 1 FROM payments WHERE account_id=$1) OR EXISTS(SELECT 1 FROM expenses WHERE account_id=$1) OR EXISTS(SELECT 1 FROM transfers WHERE from_account_id=$1 OR to_account_id=$1) AS n`,[a.id])).rows[0].n;
+  if(exists)throw Object.assign(new Error('بدأت حركات على الحساب. لا يمكن تعديل أساس الرصيد بعد التشغيل.'),{status:409});
+  await c.query('UPDATE financial_accounts SET opening_balance=$1,opening_date=current_date,opening_notes=$2,opening_set_by=$3,opening_set_at=now() WHERE id=$4',[amount,notes.trim(),req.user.id,a.id]);
+  await c.query("INSERT INTO audit_log(user_id,action,entity,entity_id,details) VALUES($1,'account_opening_set','financial_account',$2,$3)",[req.user.id,String(a.id),JSON.stringify({amount,notes})]);
+ });res.redirect('/accounting/accounts');}catch(e){res.status(e.status||500).render('error',{title:'لم يعتمد الرصيد',message:e.status?e.message:'لم يتغير الرصيد.'});}
 });
 
 // إقفال يومي

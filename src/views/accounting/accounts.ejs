@@ -1,0 +1,7 @@
+<%- include('../partials/top',{title,nav:'accounting'}) %>
+<div class="alert info">إعداد افتتاحي قبل أول حركة على الحساب، بتاريخ اليوم. لا يُسجّل إيرادًا أو تحصيلاً، ويُضاف لرصيد الحساب فقط. راجع القيمة مع سجلات الأكاديمية قبل اعتمادها؛ الاعتماد مرة واحدة ولا يمكن تعديله هنا. لا تدخل أرصدة حقيقية في المعاينة.</div>
+<% rows.forEach(a=>{ %><div class="card"><h2><%= a.name %></h2><p>الرصيد الافتتاحي: <%= Number(a.opening_balance).toLocaleString('ar-EG') %> ج.م</p>
+<% if(a.opening_set_at){ %><p>معتمد بتاريخ <%= new Date(a.opening_date).toLocaleDateString('ar-EG') %>. المرجع: <%= a.opening_notes %></p>
+<% }else if(a.has_movements){ %><p class="muted">الحساب به حركات سابقة، إدخال الرصيد الافتتاحي مقفول للمراجعة.</p>
+<% }else{ %><form method="post" action="/accounting/accounts/<%= a.id %>/opening"><input type="hidden" name="_csrf" value="<%= csrf %>"><label>الرصيد الافتتاحي بالجنيه</label><input name="amount" type="number" step="0.01" required><label>مرجع المراجعة، ولماذا هذه القيمة صحيحة</label><input name="notes" required><p class="muted">استخدم صفرًا إن لم يوجد رصيد سابق. القيمة السالبة تعني عجزًا ولا تعني دخلًا.</p><button class="btn">اعتماد الرصيد الافتتاحي مرة واحدة</button></form><% } %></div><% }) %>
+<%- include('../partials/bottom') %>
