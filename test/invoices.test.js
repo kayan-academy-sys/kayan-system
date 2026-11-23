@@ -252,7 +252,7 @@ test('occupancy state updates immediately after capacity, roster moves and cance
  const c=(await q('SELECT id FROM courses ORDER BY id LIMIT 1')).rows[0].id;
  const groups=(await q("INSERT INTO groups(course_id,name,capacity,status) VALUES($1,'حالة فورية أ',1,'open'),($1,'حالة فورية ب',5,'open') RETURNING id",[c])).rows;
  const cu=(await q("INSERT INTO customers(name,phone) VALUES('حالة وهمية','TEST-STATUS') RETURNING id")).rows[0].id;
- const o=(await q("INSERT INTO sales_orders(customer_id,kind,course_id,total_price,payment_type,status,sales_user_id) VALUES($1,'course',$2,10,'cash','approved',$3) RETURNING id",[cu,c,users.sales1])).rows[0].id;
+ const o=(await q("INSERT INTO sales_orders(customer_id,kind,course_id,total_price,payment_type,status,sales_user_id) VALUES($1,'course',$2,10,'cash','approved',$3) RETURNING id",[cu,c,(await q("SELECT id FROM users WHERE email='s1@test'")).rows[0].id])).rows[0].id;
  const e=(await q('INSERT INTO enrollments(order_id,customer_id,course_id) VALUES($1,$2,$3) RETURNING id',[o,cu,c])).rows[0].id;
  const status=async id=>(await q('SELECT status FROM groups WHERE id=$1',[id])).rows[0].status;
  await assignGroup({groupId:groups[0].id,enrollmentId:e});assert.equal(await status(groups[0].id),'full');
