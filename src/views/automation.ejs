@@ -1,4 +1,5 @@
 <%- include('partials/top', {title, nav:'automation'}) %>
+<% if(process.env.PREVIEW_GATE_REQUIRED==='1'){ %><div class="alert info">المعاينة تستخدم استدراك المهام عند استخدام الموظفين للنظام، بحد أقصى مرة كل 15 دقيقة. ليست مواعيد مضمونة أثناء نوم الاستضافة. تشغيل Render الخارجي منفصل ولا يثبت تشغيل هذه النسخة.</div><% } %>
 <% if (ran) { %><div class="alert ok">تم تشغيل جميع المهام المجدولة. راجع النتائج أدناه.</div><% } %>
 <div class="card">
   <div class="flex between">

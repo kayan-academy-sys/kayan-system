@@ -148,4 +148,17 @@ function startScheduler() {
   console.log('automation scheduler started (15 min interval)');
 }
 
-module.exports = { JOBS, runAll, runJob, startScheduler };
+// Preview on-use catch-up. One database lock across instances and at most every15min.
+async function catchUpIfDue(){
+ const c=await pool.connect();let locked=false;
+ try{
+  locked=(await c.query('SELECT pg_try_advisory_lock(72819461) AS locked')).rows[0].locked;
+  if(!locked)return {skipped:'busy'};
+  const last=(await c.query("SELECT max(finished_at) AS at FROM job_runs WHERE job='preview_catchup_complete' AND status='success'")).rows[0].at;
+  if(last&&Date.now()-new Date(last).getTime()<15*60*1000)return {skipped:'recent'};
+  const results=await runAll();
+  if(Object.values(results).every(r=>r.ok))await c.query("INSERT INTO job_runs(job,status,finished_at,details) VALUES('preview_catchup_complete','success',now(),$1)",[JSON.stringify({mode:'on_use_not_clock'})]);
+  return results;
+ }finally{if(locked)await c.query('SELECT pg_advisory_unlock(72819461)');c.release();}
+}
+module.exports = { JOBS, runAll, runJob, startScheduler,catchUpIfDue };

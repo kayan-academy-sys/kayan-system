@@ -192,3 +192,10 @@ test('installment allocation required after down payment; request key prevents d
  assert.equal((await acc.withCsrf('post','/accounting/payments',{...body,request_key:require('crypto').randomUUID(),installment_id:inst,amount:'50'})).status,302);
  assert.equal((await acc.withCsrf('post','/accounting/payments',{...body,amount:'99'})).status,409);
 });
+
+test('preview on-use catchup serializes concurrent runs and suppresses immediate repeats',async()=>{
+ await q("DELETE FROM job_runs WHERE job='preview_catchup_complete'");const {catchUpIfDue}=require('../src/lib/automation');
+ const a=await Promise.all([catchUpIfDue(),catchUpIfDue()]);assert.ok(a.some(x=>x.skipped==='busy'||x.skipped==='recent'));
+ assert.equal((await q("SELECT count(*) AS n FROM job_runs WHERE job='preview_catchup_complete'")).rows[0].n,'1');
+ assert.equal((await catchUpIfDue()).skipped,'recent');
+});

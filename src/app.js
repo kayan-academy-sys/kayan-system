@@ -56,6 +56,7 @@ app.get('/.well-known/assetlinks.json', (req, res) => {
   res.type('application/json').sendFile(path.join(__dirname, 'public', '.well-known', 'assetlinks.json'));
 });
 app.use(loadUser);
+app.use((req,res,next)=>{if(req.user&&process.env.PREVIEW_GATE_REQUIRED==='1'&&process.env.NODE_ENV==='production')require('./lib/automation').catchUpIfDue().catch(e=>console.error('preview catchup',e.message));next();});
 // Private records and exports must not remain in shared browser/proxy caches.
 app.use((req,res,next)=>{res.set('Cache-Control','no-store');next();});
 
