@@ -199,3 +199,18 @@ test('preview on-use catchup serializes concurrent runs and suppresses immediate
  assert.equal((await q("SELECT count(*) AS n FROM job_runs WHERE job='preview_catchup_complete'")).rows[0].n,'1');
  assert.equal((await catchUpIfDue()).skipped,'recent');
 });
+
+test('fictional XLSX parser and importer validate totals, restrict role, roll back failures and dedupe',async()=>{
+ const fs=require('fs');const {parseWorkbook}=require('../src/routes/import-preview');const {importSynthetic,validate}=require('../src/lib/synthetic-import');
+ const data=await parseWorkbook(fs.readFileSync(require('path').join(__dirname,'fixtures/kayan-fictional-import.xlsx')));assert.deepEqual(validate(data),{students:6,orders:6,collected:6000,total:30000});
+ const ids=(await q("SELECT id,email FROM users WHERE email IN ('admin@test','as@test','s1@test')")).rows;const get=e=>ids.find(x=>x.email===e).id;
+ const account=(await q('SELECT id FROM financial_accounts LIMIT 1')).rows[0].id;
+ await assert.rejects(()=>importSynthetic(data,{actorId:get('as@test'),salesId:get('s1@test'),accountId:account,preview:true}));
+ const bad=structuredClone(data);bad['الحجوزات'][0].total=1;assert.throws(()=>validate(bad));
+ const r=await importSynthetic(data,{actorId:get('admin@test'),salesId:get('s1@test'),accountId:account,preview:true});assert.equal(r.summary.total,30000);
+ assert.equal((await importSynthetic(data,{actorId:get('admin@test'),salesId:get('s1@test'),accountId:account,preview:true})).duplicate,true);
+ assert.equal((await q("SELECT count(*) AS n FROM customers WHERE phone LIKE 'TEST-EXCEL-%'")).rows[0].n,'6');
+ assert.equal((await q("SELECT sum(amount) AS n FROM payments WHERE notes LIKE 'استيراد إكسيل وهمي%'")).rows[0].n,'6000.00');
+ const changed=structuredClone(data);changed['الطلاب'][0].name+=' معدل';await assert.rejects(()=>importSynthetic(changed,{actorId:get('admin@test'),salesId:get('s1@test'),accountId:account,preview:true}));
+ assert.equal((await q('SELECT count(*) AS n FROM preview_import_batches')).rows[0].n,'1');
+});

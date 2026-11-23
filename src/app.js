@@ -64,6 +64,11 @@ app.use((req,res,next)=>{res.set('Cache-Control','no-store');next();});
 app.use('/api/webhooks', require('./routes/webhooks'));
 app.use('/api/cron', require('./routes/cron'));
 
+const {requireAuth,requireCap}=require('./middleware/auth');
+const importPreview=require('./routes/import-preview');
+app.get('/api/preview-automation-status',requireAuth,async(req,res)=>{if(process.env.PREVIEW_GATE_REQUIRED!=='1')return res.sendStatus(404);const row=(await require('./db').q("SELECT finished_at FROM job_runs WHERE job='preview_catchup_complete' AND status='success' ORDER BY id DESC LIMIT 1")).rows[0];res.json({mode:'on_use_not_clock',last_success:row?.finished_at||null});});
+app.get('/admin/import-preview',requireAuth,requireCap('settings.manage'),importPreview.page);
+app.post('/admin/import-preview',requireAuth,requireCap('settings.manage'),require('multer')({storage:require('multer').memoryStorage(),limits:{fileSize:1024*1024,files:1}}).single('workbook'),csrfCheck,importPreview.handle);
 app.use(csrfCheck);
 
 app.use('/', require('./routes/auth'));

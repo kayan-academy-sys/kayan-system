@@ -11,13 +11,14 @@ const app = require('../src/app');
 const supertest = require('supertest');
 
 async function resetDb() {
-  await q(`TRUNCATE invoices, commission_months, trainer_payments, trainer_group_terms, attendance, payments, installments, installment_plans, transfers, expenses, enrollments, sales_orders,
+  await q(`TRUNCATE preview_import_batches,invoices, commission_months, trainer_payments, trainer_group_terms, attendance, payments, installments, installment_plans, transfers, expenses, enrollments, sales_orders,
     login_attempts,
     package_courses, packages, sessions, groups, trainers, lead_activities, lead_assignments, staff_presence, leads,
     customers, notifications, job_runs, user_add_requests, invites, audit_log, users RESTART IDENTITY CASCADE`);
 }
 
 async function seedUsers() {
+  await q("DELETE FROM courses WHERE name LIKE '%وهمي إكسيل%'");
   await q("INSERT INTO financial_accounts(id,name,type) VALUES(1,'الخزينة','cash'),(2,'البنك','bank') ON CONFLICT DO NOTHING");
   await q("SELECT setval(pg_get_serial_sequence('financial_accounts','id'),GREATEST((SELECT max(id) FROM financial_accounts),2))");
   const hash = await bcrypt.hash('pass12345', 4);

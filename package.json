@@ -16,11 +16,16 @@
     "cookie-session": "^2.1.0",
     "dotenv": "^18.0.10",
     "ejs": "^3.1.10",
+    "exceljs": "^4.4.0",
     "express": "^4.21.2",
+    "multer": "^2.5.0",
     "pg": "^8.13.1",
     "serverless-http": "^3.2.0"
   },
   "devDependencies": {
     "supertest": "^7.0.0"
+  },
+  "overrides": {
+    "uuid": "11.1.1"
   }
 }
