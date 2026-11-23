@@ -1,3 +1,4 @@
+process.env.TRAINER_WRITES_APPROVED = 'true'; // isolated test process only
 const { test, before, after } = require('node:test');
 const assert = require('node:assert');
 const { q, pool, migrate, resetDb, seedUsers, loginAgent } = require('./helpers');
@@ -149,4 +150,38 @@ test('trainer accounts page: negative balance shows explicit advance label, not 
   assert.match(page.text, /دفعة مقدمة — المدفوع يتجاوز المستحق/, 'per-trainer advance label');
   // البطاقة الإجمالية تعتمد على أرصدة كل المحاضرين في قاعدة الاختبار المشتركة (تتغير مع ملفات اختبار أخرى)،
   // لذلك يُكتفى هنا بتسمية المحاضر المحددة، ويُتحقق بصريًا من التسمية الإجمالية على المعاينة حيث الرصيد الإجمالي سالب.
+});
+
+test('concurrent payouts cannot exceed earned balance', async () => {
+ const {tr,g}=await makeTrainerGroup({agreed:1000}); const acc=await makeAccount();
+ const a=await loginAgent('as@test'), b=await loginAgent('am@test');
+ const body={trainer_id:tr,group_id:g,amount:'700',method:'cash',account_id:acc};
+ const out=await Promise.all([a.withCsrf('post','/accounting/trainers/payments',body),b.withCsrf('post','/accounting/trainers/payments',body)]);
+ assert.deepEqual(out.map(r=>r.status).sort(),[302,400]);
+ assert.equal(await payCount(tr),1);
+});
+
+test('failure after expense insertion rolls whole payout back', async () => {
+ const {tr,g}=await makeTrainerGroup(); const acc=await makeAccount(); const a=await loginAgent('am@test');
+ await q(`CREATE OR REPLACE FUNCTION test_reject_payment() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'test rollback'; END; $$`);
+ await q(`CREATE TRIGGER test_reject_payment BEFORE INSERT ON trainer_payments FOR EACH ROW EXECUTE FUNCTION test_reject_payment()`);
+ try {
+  const r=await a.withCsrf('post','/accounting/trainers/payments',{trainer_id:tr,group_id:g,amount:'100',method:'cash',account_id:acc});
+  assert.equal(r.status,500); assert.equal(await payCount(tr),0);
+  assert.equal((await q('SELECT count(*) AS c FROM expenses WHERE account_id=$1',[acc])).rows[0].c,'0');
+ } finally {await q('DROP TRIGGER test_reject_payment ON trainer_payments');await q('DROP FUNCTION test_reject_payment()');}
+});
+
+test('linked expense cannot be voided independently; failed linked void rolls back', async () => {
+ const {tr,g}=await makeTrainerGroup();const acc=await makeAccount();const a=await loginAgent('am@test');
+ await a.withCsrf('post','/accounting/trainers/payments',{trainer_id:tr,group_id:g,amount:'100',method:'cash',account_id:acc});
+ const p=(await q('SELECT * FROM trainer_payments WHERE trainer_id=$1',[tr])).rows[0];
+ const r=await a.withCsrf('post',`/accounting/expenses/${p.expense_id}/void`,{reason:'test'});assert.equal(r.status,409);
+ await q(`CREATE OR REPLACE FUNCTION test_reject_void() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.status='voided' THEN RAISE EXCEPTION 'test rollback'; END IF; RETURN NEW; END; $$`);
+ await q('CREATE TRIGGER test_reject_void BEFORE UPDATE ON expenses FOR EACH ROW EXECUTE FUNCTION test_reject_void()');
+ try {
+  const v=await a.withCsrf('post',`/accounting/trainers/payments/${p.id}/void`,{reason:'test'});assert.equal(v.status,500);
+  assert.equal((await q('SELECT status FROM trainer_payments WHERE id=$1',[p.id])).rows[0].status,'active');
+  assert.equal((await q('SELECT status FROM expenses WHERE id=$1',[p.expense_id])).rows[0].status,'active');
+ } finally {await q('DROP TRIGGER test_reject_void ON expenses');await q('DROP FUNCTION test_reject_void()');}
 });

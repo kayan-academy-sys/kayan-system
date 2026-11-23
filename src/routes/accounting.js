@@ -162,10 +162,12 @@ router.post('/trainers/payments/:id/void', requireCap('expenses.void'), async (r
   const p = (await q('SELECT * FROM trainer_payments WHERE id=$1', [req.params.id])).rows[0];
   if (!p) return res.status(404).render('error', { title: 'غير موجودة', message: 'الدفعة غير موجودة.' });
   if (p.status !== 'active') return res.redirect('/accounting/trainers');
+  try {
   await tx(async (c) => {
     await c.query(`UPDATE trainer_payments SET status='void', voided_by=$1, voided_at=now() WHERE id=$2`, [req.user.id, p.id]);
     if (p.expense_id) await c.query(`UPDATE expenses SET status='voided', void_reason=$1, voided_by=$2, voided_at=now() WHERE id=$3 AND status='active'`, [reason, req.user.id, p.expense_id]);
   });
+  } catch (e) { return res.status(500).render('error', {title:'تعذر الإلغاء', message:'لم يتم إلغاء الدفعة. لم تتغير السجلات المرتبطة.'}); }
   await audit(req, 'trainer_payment_voided', 'trainer_payment', p.id, { reason, amount: p.amount, expense_id: p.expense_id });
   res.redirect('/accounting/trainers');
 });
