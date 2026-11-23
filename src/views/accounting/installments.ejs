@@ -22,7 +22,8 @@
         <details><summary class="btn sm">تحصيل</summary>
           <form method="post" action="/accounting/payments" class="mt">
             <input type="hidden" name="_csrf" value="<%= csrf %>">
-            <input type="hidden" name="order_id" value="<%= i.order_id %>">
+            <input type="hidden" name="request_key" value="<%= paymentRequestKey() %>">
+      <input type="hidden" name="order_id" value="<%= i.order_id %>">
             <input type="hidden" name="installment_id" value="<%= i.id %>">
             <input type="number" step="0.01" name="amount" value="<%= (parseFloat(i.amount)-parseFloat(i.paid)).toFixed(2) %>" required>
             <select name="method"><% Object.entries(L.paymentMethod).forEach(([k,v]) => { %><option value="<%= k %>"><%= v %></option><% }) %></select>

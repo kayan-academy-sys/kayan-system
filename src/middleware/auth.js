@@ -21,6 +21,7 @@ async function loadUser(req, res, next) {
   // CSRF token per session
   if (!req.session.csrf) req.session.csrf = crypto.randomBytes(24).toString('hex');
   res.locals.csrf = req.session.csrf;
+  res.locals.paymentRequestKey=()=>crypto.randomUUID();
   res.locals.L = require('../lib/labels');
   // إصدار الملفات الثابتة: يُرفع مع كل تعديل على CSS/JS لكسر كاش المتصفح (كاش 7 أيام)
   res.locals.assetV = require('../config').assetVersion;

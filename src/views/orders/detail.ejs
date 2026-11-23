@@ -67,6 +67,7 @@
   <details><summary class="btn sm">+ تسجيل دفعة</summary>
     <form method="post" action="/accounting/payments" class="form-row mt">
       <input type="hidden" name="_csrf" value="<%= csrf %>">
+      <input type="hidden" name="request_key" value="<%= paymentRequestKey() %>">
       <input type="hidden" name="order_id" value="<%= order.id %>">
       <div><label>المبلغ * (المتبقي <%= remaining.toLocaleString('ar-EG') %>)</label><input type="number" step="0.01" min="0.01" max="<%= remaining %>" name="amount" required></div>
       <% if(plan){ %><div><label>القسط المراد تحصيله</label><select name="installment_id"><option value="">المقدم فقط</option><% installments.filter(i=>Number(i.paid)<Number(i.amount)).forEach(i=>{ %><option value="<%= i.id %>">قسط <%= i.seq %> | المتبقي <%= (Number(i.amount)-Number(i.paid)).toFixed(2) %> ج.م</option><% }) %></select></div><% } %>

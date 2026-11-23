@@ -179,3 +179,16 @@ test('opening balance is privileged once-only setup, not revenue; existing movem
  const active=(await q('SELECT account_id FROM payments LIMIT 1')).rows[0].account_id;
  assert.equal((await mgr.withCsrf('post',`/accounting/accounts/${active}/opening`,{amount:'100',notes:'late'})).status,409);
 });
+
+test('installment allocation required after down payment; request key prevents double-click collections',async()=>{
+ const acc=await loginAgent('as@test');const base=(await q('SELECT * FROM payments LIMIT 1')).rows[0];
+ const order=(await q("INSERT INTO sales_orders(customer_id,kind,course_id,total_price,payment_type,sales_user_id,status) SELECT customer_id,kind,course_id,1000,'installments',sales_user_id,'approved' FROM sales_orders WHERE id=$1 RETURNING id",[base.order_id])).rows[0].id;
+ const plan=(await q('INSERT INTO installment_plans(order_id,total,down_payment,count) VALUES($1,1000,100,1) RETURNING id',[order])).rows[0].id;
+ const inst=(await q('INSERT INTO installments(plan_id,seq,amount,due_date,original_due_date) VALUES($1,1,900,current_date,current_date) RETURNING id',[plan])).rows[0].id;
+ const body={order_id:order,amount:'100',method:'cash',account_id:base.account_id,request_key:require('crypto').randomUUID()};
+ const r=await Promise.all([acc.withCsrf('post','/accounting/payments',body),acc.withCsrf('post','/accounting/payments',body)]);assert.ok(r.every(x=>x.status===302));
+ assert.equal((await q('SELECT count(*) AS n FROM payments WHERE order_id=$1',[order])).rows[0].n,'1');
+ assert.equal((await acc.withCsrf('post','/accounting/payments',{...body,request_key:undefined,amount:'50'})).status,400);
+ assert.equal((await acc.withCsrf('post','/accounting/payments',{...body,request_key:require('crypto').randomUUID(),installment_id:inst,amount:'50'})).status,302);
+ assert.equal((await acc.withCsrf('post','/accounting/payments',{...body,amount:'99'})).status,409);
+});

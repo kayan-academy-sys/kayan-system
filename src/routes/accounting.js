@@ -202,6 +202,8 @@ router.get('/payments', async (req, res) => {
 
 router.post('/payments', requireCap('payments.create'), async (req, res) => {
   const { order_id, amount, method, account_id, installment_id, notes } = req.body;
+  const requestKey=req.body.request_key||null;
+  if(requestKey&&!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(requestKey))return res.status(400).send('Invalid request key');
   const amt = Number(amount);
   if (!/^\d+(?:\.\d{1,2})?$/.test(String(amount)) || !order_id || !amt || amt <= 0 || !account_id || !['cash','bank_transfer','instapay','wallet'].includes(method)) {
     return res.status(400).render('error', { title: 'بيانات غير صالحة', message: 'تأكد من رقم الحجز والمبلغ وطريقة الدفع والحساب.' });
@@ -210,6 +212,7 @@ router.post('/payments', requireCap('payments.create'), async (req, res) => {
     const paymentId = await tx(async (c) => {
       const order = (await c.query(`SELECT * FROM sales_orders WHERE id=$1 AND status='approved' FOR UPDATE`, [order_id])).rows[0];
       if (!order) throw Object.assign(new Error('الحجز غير موجود أو ملغي.'), { status: 404 });
+      if(requestKey){const prior=(await c.query('SELECT * FROM payments WHERE request_key=$1',[requestKey])).rows[0];if(prior){if(prior.order_id!==Number(order_id)||Number(prior.amount)!==amt||prior.account_id!==Number(account_id)||prior.method!==method||String(prior.installment_id||'')!==String(installment_id||'')||prior.received_by!==req.user.id)throw Object.assign(new Error('رمز العملية مستخدم لبيانات مختلفة.'),{status:409});return prior.id;}}
       const paidSoFar = parseFloat((await c.query(`SELECT COALESCE(sum(amount),0) AS s FROM payments WHERE order_id=$1 AND status='active'`, [order_id])).rows[0].s);
       if (amt > parseFloat(order.total_price) - paidSoFar + 0.001) {
         throw Object.assign(new Error(`المبلغ يتجاوز المتبقي على الحجز (${(parseFloat(order.total_price) - paidSoFar).toLocaleString('ar-EG')} ج.م).`), { status: 400 });
@@ -227,8 +230,8 @@ router.post('/payments', requireCap('payments.create'), async (req, res) => {
         const paid=Number((await c.query("SELECT COALESCE(sum(amount),0) AS n FROM payments WHERE installment_id=$1 AND status='active'",[installment_id])).rows[0].n);
         if(amt>Number(inst.amount)-paid+0.001)throw Object.assign(new Error('المبلغ يتجاوز المتبقي على القسط.'),{status:400});
       }
-      const ins = await c.query(`INSERT INTO payments (order_id, installment_id, amount, method, account_id, received_by, notes) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
-        [order_id, installment_id || null, amt, method, account_id, req.user.id, notes || null]);
+      const ins = await c.query(`INSERT INTO payments (order_id, installment_id, amount, method, account_id, received_by, notes,request_key) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
+        [order_id, installment_id || null, amt, method, account_id, req.user.id, notes || null,requestKey]);
       if (installment_id) {
         const i = (await c.query(`SELECT i.*, p.order_id FROM installments i JOIN installment_plans p ON p.id=i.plan_id WHERE i.id=$1 FOR UPDATE`, [installment_id])).rows[0];
         if (i && i.order_id === parseInt(order_id, 10)) {
