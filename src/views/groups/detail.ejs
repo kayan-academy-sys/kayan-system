@@ -79,7 +79,7 @@
       <td><span class="badge <%= s.status==='done'?'green':s.status==='postponed'?'orange':s.status==='cancelled'?'red':'teal' %>"><%= L.sessionStatus[s.status] %></span></td>
       <td class="muted"><%= s.original_date ? new Date(s.original_date).toLocaleDateString('ar-EG') + ' ' + (s.original_start_time ? String(s.original_start_time).slice(0,5) : '') : '—' %></td>
       <td class="muted"><%= s.postpone_reason ? s.postpone_reason + ' / ' + (s.postponed_by_name || '') : '—' %></td>
-      <td><%= s.present_count %> حاضر</td>
+      <td><%= s.present_count %> حاضر<% if(can('attendance.view')||can('attendance.record')){ %><br><a href="/reception/sessions/<%= s.id %>/attendance">مراجعة الحضور</a><% } %></td>
       <td>
         <% if (canManage && s.status !== 'done' && s.status !== 'cancelled') { %>
         <details><summary class="btn ghost sm">إجراءات</summary>
