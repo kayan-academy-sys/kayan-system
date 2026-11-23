@@ -182,19 +182,9 @@ router.get('/:id', async (req, res) => {
 
 // تحديد/تغيير مجموعة تسجيل بعد الحجز (صلاحية إدارة المجموعات + فحص السعة)
 router.post('/:id/enrollments/:eid/group', requireCap('groups.manage'), async (req, res) => {
-  const order = (await q('SELECT * FROM sales_orders WHERE id=$1', [req.params.id])).rows[0];
-  if (!order) return res.status(404).render('error', { title: 'غير موجود', message: 'الحجز غير موجود.' });
-  if (order.status !== 'approved') return res.status(400).render('error', { title: 'غير ممكن', message: 'لا يمكن تحديد المجموعة إلا لحجز معتمد.' });
-  const e = (await q(`SELECT * FROM enrollments WHERE id=$1 AND order_id=$2 AND status='active'`, [req.params.eid, order.id])).rows[0];
-  if (!e) return res.status(404).render('error', { title: 'غير موجود', message: 'التسجيل غير موجود أو غير نشط.' });
-  const gid = parseInt(req.body.group_id, 10);
-  const g = (await q(`SELECT * FROM groups WHERE id=$1 AND status IN ('open','nearly_full')`, [gid])).rows[0];
-  if (!g || g.course_id !== e.course_id) return res.status(400).render('error', { title: 'غير مناسبة', message: 'المجموعة المختارة غير متاحة لهذا الكورس.' });
-  const cnt = (await q(`SELECT count(*) AS n FROM enrollments WHERE group_id=$1 AND status='active' AND id!=$2`, [g.id, e.id])).rows[0].n;
-  if (parseInt(cnt, 10) >= g.capacity) return res.status(409).render('error', { title: 'مكتملة', message: 'المجموعة مكتملة العدد.' });
-  await q('UPDATE enrollments SET group_id=$1 WHERE id=$2', [g.id, e.id]);
-  await audit(req, 'enrollment_group_assigned', 'enrollment', e.id, { order_id: order.id, group_id: g.id });
-  res.redirect('/orders/' + order.id);
+  try{const e=await require('../lib/group-assignment').assignGroup({groupId:req.body.group_id,enrollmentId:req.params.eid,orderId:req.params.id});
+  await audit(req,'enrollment_group_assigned','enrollment',e.id,{order_id:req.params.id,group_id:req.body.group_id});res.redirect('/orders/'+req.params.id);
+  }catch(e){res.status(e.status||500).render('error',{title:'تعذر تحديد المجموعة',message:e.status?e.message:'لم يتم التغيير.'});}
 });
 
 // إلغاء الحجز (صلاحية خاصة + سبب + سجل مراجعة)

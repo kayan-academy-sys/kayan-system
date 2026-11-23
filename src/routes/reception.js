@@ -1,5 +1,5 @@
 const express = require('express');
-const { q } = require('../db');
+const { q,tx } = require('../db');
 const { requireAuth, requireCap } = require('../middleware/auth');
 const { audit } = require('../lib/audit');
 const { can } = require('../lib/permissions');
@@ -80,23 +80,22 @@ router.get('/sessions/:id/attendance', requireCap('attendance.record', 'attendan
 });
 
 router.post('/sessions/:id/attendance', requireCap('attendance.record'), async (req, res) => {
-  const s = (await q('SELECT * FROM sessions WHERE id=$1', [req.params.id])).rows[0];
-  if (!s) return res.status(404).render('error', { title: 'غير موجودة', message: 'المحاضرة غير موجودة.' });
-  // لا يُسجَّل حضور لمحاضرة لم تبدأ بعد بتوقيت القاهرة — التسجيل أثناء المحاضرة أو بعدها فقط.
-  const started = (await q(`SELECT (session_date + COALESCE(start_time, '00:00'::time)) AT TIME ZONE 'Africa/Cairo' <= now() AS ok FROM sessions WHERE id=$1`, [s.id])).rows[0].ok;
-  if (!started) return res.status(400).render('error', { title: 'لم تبدأ بعد', message: 'لا يمكن تسجيل الحضور قبل بداية المحاضرة.' });
-  const valid = ['present','absent','late','excused'];
-  const entries = Object.entries(req.body).filter(([k]) => k.startsWith('att_'));
-  for (const [k, status] of entries) {
-    if (!valid.includes(status)) continue;
-    const enrollmentId = parseInt(k.slice(4), 10);
-    const notes = req.body['notes_' + enrollmentId] || null;
-    await q(`INSERT INTO attendance (session_id, enrollment_id, status, checked_by, notes) VALUES ($1,$2,$3,$4,$5)
-      ON CONFLICT (session_id, enrollment_id) DO UPDATE SET status=$3, checked_by=$4, checked_at=now(), notes=$5`,
-      [s.id, enrollmentId, status, req.user.id, notes]);
-  }
-  await audit(req, 'attendance_recorded', 'session', s.id, { count: entries.length });
-  res.redirect('/reception/sessions/' + s.id + '/attendance');
+  try{await tx(async c=>{
+   const s=(await c.query('SELECT * FROM sessions WHERE id=$1 FOR UPDATE',[req.params.id])).rows[0];
+   if(!s)throw Object.assign(Error('المحاضرة غير موجودة.'),{status:404});
+   if(s.status==='cancelled')throw Object.assign(Error('لا حضور لمحاضرة ملغاة.'),{status:409});
+   const started=(await c.query("SELECT (session_date+COALESCE(start_time,'00:00'::time)) AT TIME ZONE 'Africa/Cairo'<=now() AS ok FROM sessions WHERE id=$1",[s.id])).rows[0].ok;
+   if(!started)throw Object.assign(Error('لا يمكن تسجيل الحضور قبل بداية المحاضرة.'),{status:400});
+   const entries=Object.entries(req.body).filter(([k])=>k.startsWith('att_'));const valid=['present','absent','late','excused'];
+   for(const [k,status] of entries){
+    const eid=Number(k.slice(4));if(!Number.isInteger(eid)||!valid.includes(status))throw Object.assign(Error('قيمة حضور غير صالحة.'),{status:400});
+    const e=(await c.query("SELECT e.id FROM enrollments e JOIN sales_orders o ON o.id=e.order_id WHERE e.id=$1 AND e.group_id=$2 AND e.status='active' AND o.status='approved' FOR SHARE OF e,o",[eid,s.group_id])).rows[0];
+    if(!e)throw Object.assign(Error('الطالب ليس مسجلا نشطا في مجموعة هذه المحاضرة.'),{status:400});
+   }
+   for(const [k,status] of entries){const eid=Number(k.slice(4));await c.query(`INSERT INTO attendance(session_id,enrollment_id,status,checked_by,notes) VALUES($1,$2,$3,$4,$5) ON CONFLICT(session_id,enrollment_id) DO UPDATE SET status=$3,checked_by=$4,checked_at=now(),notes=$5`,[s.id,eid,status,req.user.id,req.body['notes_'+eid]||null]);}
+   await c.query("INSERT INTO audit_log(user_id,action,entity,entity_id,details) VALUES($1,'attendance_recorded','session',$2,$3)",[req.user.id,String(s.id),JSON.stringify({count:entries.length})]);
+  });res.redirect('/reception/sessions/'+req.params.id+'/attendance');
+  }catch(e){res.status(e.status||500).render('error',{title:'تعذر تسجيل الحضور',message:e.status?e.message:'لم يتم الحفظ.'});}
 });
 
 module.exports = router;
