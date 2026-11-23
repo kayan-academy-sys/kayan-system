@@ -56,6 +56,8 @@ app.get('/.well-known/assetlinks.json', (req, res) => {
   res.type('application/json').sendFile(path.join(__dirname, 'public', '.well-known', 'assetlinks.json'));
 });
 app.use(loadUser);
+// Private records and exports must not remain in shared browser/proxy caches.
+app.use((req,res,next)=>{res.set('Cache-Control','no-store');next();});
 
 // Webhook واتساب ونقطة cron لا يحتاجان CSRF (محميان بأسرار خاصة)
 app.use('/api/webhooks', require('./routes/webhooks'));

@@ -56,6 +56,6 @@ router.post('/:id/confirm',requireCap('expenses.create'),async(req,res)=>{
 router.get('/:id',async(req,res)=>{
  const inv=(await q('SELECT i.*,u.name AS sales_name FROM invoices i LEFT JOIN users u ON u.id=i.sales_user_id WHERE i.id=$1',[req.params.id])).rows[0];
  if(!inv||(!isAccounting(req.user)&&!(inv.sales_user_id===req.user.id&&['confirmed','voided'].includes(inv.status))))return res.status(404).render('error',{title:'غير موجود',message:'الإيصال غير موجود.'});
- res.render('accounting/invoice_print',{title:'إيصال '+inv.serial_no,inv,csrf:res.locals.csrf,canConfirm:can(req.user.roles,'expenses.create')&&inv.status==='draft',words:amountInWords(inv.amount_pounds,inv.amount_piastres)});
+ res.render('accounting/invoice_print',{title:'إيصال '+inv.serial_no,inv,csrf:res.locals.csrf,canConfirm:can(req.user.roles,'expenses.create')&&inv.status==='draft'&&!!inv.payment_id,words:amountInWords(inv.amount_pounds,inv.amount_piastres)});
 });
 module.exports=router;
