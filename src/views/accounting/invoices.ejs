@@ -1,0 +1,9 @@
+<%- include('../partials/top',{title,nav:'invoices'}) %>
+<div class="alert info">معاينة إيصال الاستلام حسب النموذج المصور. كل الإيصالات مسودات، التأكيد والإرسال للسيلز موقوفان لحين اعتماد المسؤول ووسيلة الإرسال. هذه الشاشة لا تسجل تحصيلًا ولا تغيّر الخزينة. راجع البنود مع الأصل قبل الاستخدام.</div>
+<div class="card"><h2>إعداد مسودة إيصال</h2><form method="post" action="/accounting/invoices"><input type="hidden" name="_csrf" value="<%= csrf %>">
+<div class="form-row"><div><label>اسم العميل</label><input name="customer_name" required></div><div><label>الموبايل</label><input name="customer_mobile" dir="ltr"></div></div>
+<div class="form-row"><div><label>جنيه</label><input name="amount_pounds" type="number" min="0" max="999999999" step="1" required></div><div><label>قرش</label><input name="amount_piastres" type="number" min="0" max="99" value="0" step="1"></div></div>
+<label>وذلك عن</label><input name="purpose" required><label>نوع العرض</label><input name="offer_type"><label>السيلز المرتبط، اختيار يدوي للمراجعة، ليس إرسالًا</label><select name="sales_user_id"><option value="">لم يُحدد</option><% sales.forEach(u=>{ %><option value="<%= u.id %>"><%= u.name %></option><% }) %></select>
+<p class="muted">رقم تسلسلي تلقائي، وقد توجد فجوات عند إلغاء معاملة. البنود ثابتة وتُحفظ مع المسودة. تعديل القالب لمسؤول النظام فقط.</p><button class="btn">حفظ مسودة للمعاينة</button></form></div>
+<div class="card"><h2>الإيصالات</h2><table><tr><th>الرقم</th><th>العميل</th><th>المبلغ</th><th>السيلز</th><th>الحالة</th></tr><% rows.forEach(i=>{ %><tr><td><a href="/accounting/invoices/<%= i.id %>"><%= i.serial_no %></a></td><td><%= i.customer_name %></td><td><%= i.amount_pounds %>.<%= String(i.amount_piastres).padStart(2,'0') %></td><td><%= i.sales_name||'غير محدد' %></td><td>مسودة</td></tr><% }) %></table></div>
+<%- include('../partials/bottom') %>

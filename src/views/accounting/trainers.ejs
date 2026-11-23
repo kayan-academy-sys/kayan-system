@@ -1,5 +1,5 @@
 <%- include('../partials/top', {title, nav:'trainer-accounts'}) %>
-<div class="alert info">قاعدة الحساب: مبلغ متفق عليه لكل مجموعة، يُستحق للمحاضر عند انتهاء المجموعة (تغيير حالتها إلى «منتهية» من صفحة المجموعات). تسجيل الدفعة ينشئ مصروفًا مرتبطًا يخصم تلقائيًا من الحساب المختار (يظهر في صفحة المصروفات)، وإلغاء الدفعة يلغي المصروف معها. لا يمكن تسجيل دفعة تتجاوز الرصيد المستحق؛ الدفعات المقدمة موقوفة لحين اعتماد المالك قاعدتها.</div>
+<div class="alert info">تنبيه: تسجيل الدفعات موقوف مؤقتًا أثناء التحقق. قاعدة الحساب: مبلغ متفق عليه لكل مجموعة، يُستحق للمحاضر عند انتهاء المجموعة (تغيير حالتها إلى «منتهية» من صفحة المجموعات). تسجيل الدفعة ينشئ مصروفًا مرتبطًا يخصم تلقائيًا من الحساب المختار (يظهر في صفحة المصروفات)، وإلغاء الدفعة يلغي المصروف معها. لا يمكن تسجيل دفعة تتجاوز الرصيد المستحق؛ الدفعات المقدمة موقوفة لحين اعتماد المالك قاعدتها.</div>
 <div class="grid c4">
   <div class="stat"><div class="num"><%= totals.agreed.toLocaleString('ar-EG') %></div><div class="lbl">إجمالي متفق عليه (ج.م)</div></div>
   <div class="stat"><div class="num"><%= totals.earned.toLocaleString('ar-EG') %></div><div class="lbl">مستحق — مجموعات منتهية (ج.م)</div></div>
@@ -77,7 +77,7 @@
       <select name="method" required style="width:140px"><% Object.entries(L.paymentMethod).forEach(([k,v]) => { %><option value="<%= k %>"><%= v %></option><% }) %></select>
       <select name="account_id" required style="width:150px"><% accounts.forEach(a => { %><option value="<%= a.id %>"><%= a.name %></option><% }) %></select>
       <input name="notes" placeholder="ملاحظات" style="width:180px">
-      <button class="btn sm">تسجيل</button>
+      <button class="btn sm" disabled title="الكتابة موقوفة أثناء التحقق">تسجيل موقوف مؤقتًا</button>
     </form>
   </details>
   <% } %>

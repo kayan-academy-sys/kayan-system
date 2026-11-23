@@ -119,6 +119,17 @@ router.get('/settings', requireCap('settings.manage'), async (req, res) => {
   res.render('admin/settings', { title: 'الإعدادات', settings: rows, saved: req.query.saved === '1' });
 });
 
+router.post('/invoice-terms', requireCap('settings.manage'), async(req,res)=>{
+ const terms=String(req.body.terms||'').trim();
+ if(!terms||terms.length>20000)return res.status(400).render('error',{title:'بنود غير صالحة',message:'أدخل البنود، بحد أقصى ٢٠ ألف حرف.'});
+ await tx(async c=>{
+  await c.query("SELECT key FROM settings WHERE key IN ('invoice_terms','invoice_terms_version') ORDER BY key FOR UPDATE");
+  await c.query("UPDATE settings SET value=to_jsonb($1::text),updated_by=$2,updated_at=now() WHERE key='invoice_terms'",[terms,req.user.id]);
+  await c.query("UPDATE settings SET value=to_jsonb((value::text)::int+1),updated_by=$1,updated_at=now() WHERE key='invoice_terms_version'",[req.user.id]);
+ });
+ await audit(req,'receipt_terms_changed','settings',null,{});res.redirect('/admin/settings?saved=1');
+});
+
 router.post('/settings', requireCap('settings.manage'), async (req, res) => {
   const days = parseInt(req.body.lead_reassign_days, 10);
   if (!Number.isInteger(days) || days < 1 || days > 365) {
@@ -149,9 +160,11 @@ router.get('/backup', requireCap('backups.manage'), async (req, res) => {
 
 router.post('/backup/run', requireCap('backups.manage'), async (req, res) => {
   const token = process.env.BACKUP_GH_TOKEN;
+  const isPreview = /(?:\/|%2F)kayan_preview(?:[?&]|$)/.test(process.env.DATABASE_URL || '');
+  const workflow = isPreview ? 'preview-backup.yml' : 'backup.yml';
   if (!token) return res.redirect('/admin/backup?err=not_configured');
   try {
-    const r = await fetch('https://api.github.com/repos/kayan-academy-sys/kayan-backups/actions/workflows/backup.yml/dispatches', {
+    const r = await fetch('https://api.github.com/repos/kayan-academy-sys/kayan-backups/actions/workflows/' + workflow + '/dispatches', {
       method: 'POST',
       headers: {
         Authorization: 'token ' + token,

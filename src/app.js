@@ -74,6 +74,7 @@ app.use('/groups', require('./routes/groups'));
 app.use('/sessions', require('./routes/sessions'));
 app.use('/packages', require('./routes/packages'));
 app.use('/orders', require('./routes/orders'));
+app.use('/accounting/invoices', require('./routes/invoices'));
 app.use('/accounting', require('./routes/accounting'));
 const commissionsRoutes = require('./routes/commissions');
 app.use('/accounting/commissions', commissionsRoutes.accounting);
