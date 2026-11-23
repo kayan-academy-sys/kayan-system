@@ -16,7 +16,7 @@
     </table>
     <% if (canCancel && order.status==='approved') { %>
     <details class="mt"><summary class="btn danger sm">إلغاء الحجز</summary>
-      <form method="post" action="/orders/<%= order.id %>/cancel" class="mt" onsubmit="return confirm('تأكيد إلغاء الحجز؟ لا يمكن التراجع.')">
+      <form method="post" action="/orders/<%= order.id %>/cancel" class="mt">
         <input type="hidden" name="_csrf" value="<%= csrf %>">
         <label>سبب الإلغاء *</label><input name="reason" required>
         <button class="btn danger sm mt">تأكيد الإلغاء</button>
