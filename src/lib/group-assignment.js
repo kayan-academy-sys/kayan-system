@@ -2,7 +2,7 @@ const {tx}=require('../db');
 async function assignGroup({groupId,enrollmentId,orderId}){
  return tx(async c=>{
   const g=(await c.query('SELECT * FROM groups WHERE id=$1 FOR UPDATE',[groupId])).rows[0];
-  if(!g||!['open','nearly_full'].includes(g.status))throw Object.assign(Error('المجموعة غير متاحة.'),{status:400});
+  if(!g||!['open','nearly_full','full'].includes(g.status))throw Object.assign(Error('المجموعة غير متاحة.'),{status:400});
   const e=(await c.query('SELECT * FROM enrollments WHERE id=$1 FOR UPDATE',[enrollmentId])).rows[0];
   if(!e||e.status!=='active'||e.course_id!==g.course_id||(orderId&&e.order_id!==Number(orderId)))throw Object.assign(Error('التسجيل غير مناسب للمجموعة.'),{status:400});
   const o=(await c.query('SELECT status FROM sales_orders WHERE id=$1 FOR UPDATE',[e.order_id])).rows[0];

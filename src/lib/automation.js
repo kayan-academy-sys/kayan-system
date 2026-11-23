@@ -111,13 +111,13 @@ async function groupFullnessAlerts() {
   return runJob('group_fullness', async () => {
     const threshold = parseInt(await getSetting('nearly_full_threshold', 3), 10);
     const { rows } = await q(`
-      SELECT g.id, g.name, g.capacity,
+      SELECT g.id, g.name, g.capacity, g.status,
         (SELECT count(*) FROM enrollments e WHERE e.group_id=g.id AND e.status='active') AS booked
-      FROM groups g WHERE g.status IN ('open','nearly_full')`);
+      FROM groups g WHERE g.status IN ('open','nearly_full','full')`);
     let changed = 0;
     for (const g of rows) {
       const avail = g.capacity - g.booked;
-      let target = null;
+      let target = 'open';
       if (avail <= 0) target = 'full';
       else if (avail <= threshold) target = 'nearly_full';
       if (target && target !== g.status) {

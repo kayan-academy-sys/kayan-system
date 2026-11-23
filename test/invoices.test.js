@@ -246,3 +246,20 @@ test('class assignment serializes last seat; attendance rejects cross-group, can
  await q('UPDATE sessions SET session_date=current_date-1 WHERE id=$1',[sid]);await q("UPDATE sales_orders SET status='cancelled' WHERE id=(SELECT order_id FROM enrollments WHERE id=$1)",[eid]);
  assert.equal((await rc.withCsrf('post',`/reception/sessions/${sid}/attendance`,{['att_'+eid]:'present'})).status,400);
 });
+
+test('occupancy state updates immediately after capacity, roster moves and cancellation without automation',async()=>{
+ const {assignGroup}=require('../src/lib/group-assignment');
+ const c=(await q('SELECT id FROM courses ORDER BY id LIMIT 1')).rows[0].id;
+ const groups=(await q("INSERT INTO groups(course_id,name,capacity,status) VALUES($1,'حالة فورية أ',1,'open'),($1,'حالة فورية ب',5,'open') RETURNING id",[c])).rows;
+ const cu=(await q("INSERT INTO customers(name,phone) VALUES('حالة وهمية','TEST-STATUS') RETURNING id")).rows[0].id;
+ const o=(await q("INSERT INTO sales_orders(customer_id,kind,course_id,total_price,payment_type,status,sales_user_id) VALUES($1,'course',$2,10,'cash','approved',$3) RETURNING id",[cu,c,users.sales1])).rows[0].id;
+ const e=(await q('INSERT INTO enrollments(order_id,customer_id,course_id) VALUES($1,$2,$3) RETURNING id',[o,cu,c])).rows[0].id;
+ const status=async id=>(await q('SELECT status FROM groups WHERE id=$1',[id])).rows[0].status;
+ await assignGroup({groupId:groups[0].id,enrollmentId:e});assert.equal(await status(groups[0].id),'full');
+ await q('UPDATE groups SET capacity=10 WHERE id=$1',[groups[0].id]);assert.equal(await status(groups[0].id),'open');
+ await q('UPDATE groups SET capacity=1 WHERE id=$1',[groups[0].id]);assert.equal(await status(groups[0].id),'full');
+ await assignGroup({groupId:groups[1].id,enrollmentId:e,orderId:o});assert.equal(await status(groups[0].id),'nearly_full');assert.equal(await status(groups[1].id),'open');
+ await q('UPDATE groups SET capacity=1 WHERE id=$1',[groups[1].id]);assert.equal(await status(groups[1].id),'full');
+ const ad=await loginAgent('admin@test');assert.equal((await ad.withCsrf('post',`/orders/${o}/cancel`,{reason:'اختبار وهمي'})).status,302);assert.equal(await status(groups[1].id),'nearly_full');
+ await q("UPDATE groups SET status='running' WHERE id=$1",[groups[1].id]);await q('UPDATE groups SET capacity=20 WHERE id=$1',[groups[1].id]);assert.equal(await status(groups[1].id),'running');
+});
