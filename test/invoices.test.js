@@ -32,8 +32,10 @@ test('accounting confirms synthetic receipt exactly once; only attributed salesp
  const cust=(await q("INSERT INTO customers(name,phone) VALUES('عميل ربط وهمي','TST-ORDER') RETURNING id")).rows[0].id;
  const course=(await q('SELECT id FROM courses LIMIT 1')).rows[0].id;
  const order=(await q("INSERT INTO sales_orders(customer_id,kind,course_id,total_price,payment_type,sales_user_id,status) VALUES($1,'course',$2,1000,'cash',$3,'approved') RETURNING id",[cust,course,s1])).rows[0].id;
+ const account=(await q('SELECT id FROM financial_accounts LIMIT 1')).rows[0].id;
+ const payment=(await q("INSERT INTO payments(order_id,amount,method,account_id) VALUES($1,100,'cash',$2) RETURNING id",[order,account])).rows[0].id;
  const a=await loginAgent('as@test');
- const r=await a.withCsrf('post','/accounting/invoices',{customer_name:'لا يؤخذ هذا الاسم',purpose:'تجريبي',amount_pounds:'100',order_id:order});assert.equal(r.status,302);
+ const r=await a.withCsrf('post','/accounting/invoices',{payment_id:payment,customer_name:'لا يؤخذ هذا الاسم',purpose:'تجريبي',amount_pounds:'100',order_id:order});assert.equal(r.status,302);
  const inv=(await q('SELECT * FROM invoices WHERE order_id=$1',[order])).rows[0];assert.equal(inv.customer_name,'عميل ربط وهمي');assert.equal(inv.sales_user_id,s1);
  const before=(await q('SELECT count(*) AS c FROM notifications')).rows[0].c;
  const sales=await loginAgent('s1@test');assert.equal((await sales.agent.get('/accounting/invoices/'+inv.id)).status,404);
@@ -54,11 +56,67 @@ test('accounting confirms synthetic receipt exactly once; only attributed salesp
 
 test('failed delivery transaction leaves draft and no notification',async()=>{
  const inv=(await q("SELECT * FROM invoices WHERE status='confirmed' LIMIT 1")).rows[0];
- const id=(await q("INSERT INTO invoices(customer_name,amount_pounds,purpose,terms,terms_version,order_id,sales_user_id,synthetic) VALUES('وهمي',50,'اختبار','بنود',1,$1,$2,true) RETURNING id",[inv.order_id,inv.sales_user_id])).rows[0].id;
+ const payment=(await q("INSERT INTO payments(order_id,amount,method,account_id) SELECT order_id,50,method,account_id FROM payments WHERE id=$1 RETURNING id",[inv.payment_id])).rows[0].id;
+ const id=(await q("INSERT INTO invoices(customer_name,amount_pounds,purpose,terms,terms_version,order_id,sales_user_id,synthetic,payment_id) VALUES('وهمي',50,'اختبار','بنود',1,$1,$2,true,$3) RETURNING id",[inv.order_id,inv.sales_user_id,payment])).rows[0].id;
  const a=await loginAgent('as@test');process.env.PREVIEW_GATE_REQUIRED='1';process.env.PREVIEW_GATE_PASS='test-gate-only';
  const crypto=require('crypto'),ts=String(Date.now()),sig=crypto.createHmac('sha256','test-gate-only').update('kayan-gate-v1.'+ts).digest('hex');a.agent.jar.setCookie('kayan_gate='+ts+'.'+sig+'; Path=/');
  await q(`CREATE FUNCTION test_reject_notification() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'fixture failure'; END; $$`);
  await q('CREATE TRIGGER test_reject_notification BEFORE INSERT ON notifications FOR EACH ROW EXECUTE FUNCTION test_reject_notification()');
  try{assert.equal((await a.withCsrf('post',`/accounting/invoices/${id}/confirm`,{})).status,500);assert.equal((await q('SELECT status FROM invoices WHERE id=$1',[id])).rows[0].status,'draft');}
  finally{await q('DROP TRIGGER test_reject_notification ON notifications');await q('DROP FUNCTION test_reject_notification()');process.env.PREVIEW_GATE_REQUIRED='0';delete process.env.PREVIEW_GATE_PASS;}
+});
+
+test('payment-linked receipt uses payment amount, refuses duplicates and voided collections',async()=>{
+ const a=await loginAgent('as@test');const base=(await q('SELECT * FROM payments LIMIT 1')).rows[0];
+ const pid=(await q("INSERT INTO payments(order_id,amount,method,account_id) VALUES($1,123.45,'cash',$2) RETURNING id",[base.order_id,base.account_id])).rows[0].id;
+ const before=await q("SELECT sum(amount) AS s,count(*) AS n FROM payments WHERE status='active'");
+ const body={payment_id:pid,customer_name:'forged',amount_pounds:999,amount_piastres:99,purpose:'اختبار ربط التحصيل'};
+ const pair=await Promise.all([a.withCsrf('post','/accounting/invoices',body),a.withCsrf('post','/accounting/invoices',body)]);
+ assert.deepEqual(pair.map(x=>x.status).sort(),[302,409]);
+ const inv=(await q('SELECT * FROM invoices WHERE payment_id=$1',[pid])).rows[0];assert.equal(inv.amount_pounds,123);assert.equal(inv.amount_piastres,45);assert.notEqual(inv.customer_name,'forged');
+ assert.deepEqual((await q("SELECT sum(amount) AS s,count(*) AS n FROM payments WHERE status='active'")).rows,before.rows);
+ await q("UPDATE payments SET status='voided' WHERE id=$1",[pid]);
+ assert.equal((await a.withCsrf('post','/accounting/invoices',{payment_id:pid,purpose:'test'})).status,409);
+});
+
+test('collection, installment, treasury and receipt reversal reconcile atomically; repeated void is safe',async()=>{
+ const acc=await loginAgent('as@test'),mgr=await loginAgent('am@test');
+ const base=(await q('SELECT * FROM payments LIMIT 1')).rows[0];
+ const order=(await q("INSERT INTO sales_orders(customer_id,kind,course_id,total_price,payment_type,sales_user_id,status) SELECT customer_id,kind,course_id,500,'installments',sales_user_id,'approved' FROM sales_orders WHERE id=$1 RETURNING id",[base.order_id])).rows[0].id;
+ const plan=(await q('INSERT INTO installment_plans(order_id,total,down_payment,count) VALUES($1,500,0,1) RETURNING id',[order])).rows[0].id;
+ const inst=(await q("INSERT INTO installments(plan_id,seq,amount,due_date,original_due_date) VALUES($1,1,500,current_date,current_date) RETURNING id",[plan])).rows[0].id;
+ const {accountBalances}=require('../src/lib/balances');const balance=Number((await accountBalances()).find(x=>x.id===base.account_id).balance);
+ const b={order_id:order,installment_id:inst,amount:'500.00',method:'cash',account_id:base.account_id};
+ assert.equal((await acc.withCsrf('post','/accounting/payments',b)).status,302);
+ const pay=(await q('SELECT * FROM payments WHERE order_id=$1',[order])).rows[0];
+ assert.equal((await q('SELECT status FROM installments WHERE id=$1',[inst])).rows[0].status,'paid');
+ assert.equal(Number((await accountBalances()).find(x=>x.id===base.account_id).balance),balance+500);
+ assert.equal((await acc.withCsrf('post','/accounting/invoices',{payment_id:pay.id,purpose:'قسط تجريبي'})).status,302);
+ const inv=(await q('SELECT * FROM invoices WHERE payment_id=$1',[pay.id])).rows[0];
+ await q('UPDATE invoices SET synthetic=true WHERE id=$1',[inv.id]);
+ const crypto=require('crypto'),ts=String(Date.now());process.env.PREVIEW_GATE_PASS='test-gate-only';process.env.PREVIEW_GATE_REQUIRED='1';
+ const cookie='kayan_gate='+ts+'.'+crypto.createHmac('sha256','test-gate-only').update('kayan-gate-v1.'+ts).digest('hex')+'; Path=/';acc.agent.jar.setCookie(cookie);mgr.agent.jar.setCookie(cookie);
+ try{
+  assert.equal((await acc.withCsrf('post',`/accounting/invoices/${inv.id}/confirm`,{})).status,302);
+  assert.equal(Number((await accountBalances()).find(x=>x.id===base.account_id).balance),balance+500);
+  assert.equal((await acc.withCsrf('post',`/accounting/payments/${pay.id}/void`,{reason:'forbidden'})).status,403);
+  await q(`CREATE FUNCTION test_reject_invoice_void() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.status='voided' THEN RAISE EXCEPTION 'fixture'; END IF; RETURN NEW; END; $$`);
+  await q('CREATE TRIGGER test_reject_invoice_void BEFORE UPDATE ON invoices FOR EACH ROW EXECUTE FUNCTION test_reject_invoice_void()');
+  try{
+   assert.equal((await mgr.withCsrf('post',`/accounting/payments/${pay.id}/void`,{reason:'اختبار فشل'})).status,500);
+   assert.equal((await q('SELECT status FROM payments WHERE id=$1',[pay.id])).rows[0].status,'active');
+   assert.equal((await q('SELECT status FROM invoices WHERE id=$1',[inv.id])).rows[0].status,'confirmed');
+   assert.equal((await q('SELECT status FROM installments WHERE id=$1',[inst])).rows[0].status,'paid');
+  }finally{await q('DROP TRIGGER test_reject_invoice_void ON invoices');await q('DROP FUNCTION test_reject_invoice_void()');}
+  const res=await Promise.all([mgr.withCsrf('post',`/accounting/payments/${pay.id}/void`,{reason:'إلغاء تجريبي'}),mgr.withCsrf('post',`/accounting/payments/${pay.id}/void`,{reason:'تكرار'})]);assert.ok(res.every(x=>x.status===302));
+  assert.equal((await q('SELECT status FROM invoices WHERE id=$1',[inv.id])).rows[0].status,'voided');
+  assert.equal((await q('SELECT status FROM installments WHERE id=$1',[inst])).rows[0].status,'pending');
+  assert.equal(Number((await accountBalances()).find(x=>x.id===base.account_id).balance),balance);
+  assert.equal((await acc.withCsrf('post',`/accounting/invoices/${inv.id}/confirm`,{})).status,409);
+ }finally{process.env.PREVIEW_GATE_REQUIRED='0';delete process.env.PREVIEW_GATE_PASS;}
+ const sales=await loginAgent('s1@test');assert.match((await sales.agent.get('/accounting/invoices/'+inv.id)).text,/إيصال ملغي/);
+ assert.equal((await q("SELECT count(*) AS n FROM audit_log WHERE action='payment_voided' AND entity_id=$1",[String(pay.id)])).rows[0].n,'1');
+ const foreign=(await q('SELECT id FROM sales_orders WHERE id<>$1 LIMIT 1',[order])).rows[0].id;
+ assert.equal((await acc.withCsrf('post','/accounting/payments',{...b,order_id:foreign,amount:'1'})).status,400);
+ assert.equal((await acc.withCsrf('post','/accounting/payments',{...b,amount:'500.001'})).status,400);
 });

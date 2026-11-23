@@ -183,8 +183,8 @@ router.get('/payments', async (req, res) => {
 
 router.post('/payments', requireCap('payments.create'), async (req, res) => {
   const { order_id, amount, method, account_id, installment_id, notes } = req.body;
-  const amt = parseFloat(amount);
-  if (!order_id || !amt || amt <= 0 || !account_id || !['cash','bank_transfer','instapay','wallet'].includes(method)) {
+  const amt = Number(amount);
+  if (!/^\d+(?:\.\d{1,2})?$/.test(String(amount)) || !order_id || !amt || amt <= 0 || !account_id || !['cash','bank_transfer','instapay','wallet'].includes(method)) {
     return res.status(400).render('error', { title: 'بيانات غير صالحة', message: 'تأكد من رقم الحجز والمبلغ وطريقة الدفع والحساب.' });
   }
   try {
@@ -194,6 +194,14 @@ router.post('/payments', requireCap('payments.create'), async (req, res) => {
       const paidSoFar = parseFloat((await c.query(`SELECT COALESCE(sum(amount),0) AS s FROM payments WHERE order_id=$1 AND status='active'`, [order_id])).rows[0].s);
       if (amt > parseFloat(order.total_price) - paidSoFar + 0.001) {
         throw Object.assign(new Error(`المبلغ يتجاوز المتبقي على الحجز (${(parseFloat(order.total_price) - paidSoFar).toLocaleString('ar-EG')} ج.م).`), { status: 400 });
+      }
+      const account=(await c.query('SELECT id FROM financial_accounts WHERE id=$1 AND active FOR SHARE',[account_id])).rows[0];
+      if(!account)throw Object.assign(new Error('الحساب المالي غير متاح.'),{status:400});
+      if(installment_id){
+        const inst=(await c.query('SELECT i.*,p.order_id FROM installments i JOIN installment_plans p ON p.id=i.plan_id WHERE i.id=$1 FOR UPDATE OF i',[installment_id])).rows[0];
+        if(!inst||inst.order_id!==Number(order_id))throw Object.assign(new Error('القسط لا يتبع هذا الحجز.'),{status:400});
+        const paid=Number((await c.query("SELECT COALESCE(sum(amount),0) AS n FROM payments WHERE installment_id=$1 AND status='active'",[installment_id])).rows[0].n);
+        if(amt>Number(inst.amount)-paid+0.001)throw Object.assign(new Error('المبلغ يتجاوز المتبقي على القسط.'),{status:400});
       }
       const ins = await c.query(`INSERT INTO payments (order_id, installment_id, amount, method, account_id, received_by, notes) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
         [order_id, installment_id || null, amt, method, account_id, req.user.id, notes || null]);
@@ -217,19 +225,22 @@ router.post('/payments', requireCap('payments.create'), async (req, res) => {
 router.post('/payments/:id/void', requireCap('payments.void'), async (req, res) => {
   const { reason } = req.body;
   if (!reason) return res.status(400).render('error', { title: 'سبب مطلوب', message: 'سبب إلغاء الدفعة إلزامي ويُسجل في سجل المراجعة.' });
-  const p = (await q('SELECT * FROM payments WHERE id=$1', [req.params.id])).rows[0];
-  if (!p) return res.status(404).render('error', { title: 'غير موجودة', message: 'الدفعة غير موجودة.' });
-  if (p.status === 'voided') return res.redirect('/accounting/payments');
-  await tx(async (c) => {
-    await c.query(`UPDATE payments SET status='voided', void_reason=$1, voided_by=$2, voided_at=now() WHERE id=$3`, [reason, req.user.id, p.id]);
-    if (p.installment_id) {
-      const i = (await c.query('SELECT * FROM installments WHERE id=$1', [p.installment_id])).rows[0];
-      const paidInst = parseFloat((await c.query(`SELECT COALESCE(sum(amount),0) AS s FROM payments WHERE installment_id=$1 AND status='active'`, [p.installment_id])).rows[0].s);
-      if (i && paidInst < parseFloat(i.amount)) await c.query(`UPDATE installments SET status='pending' WHERE id=$1`, [p.installment_id]);
+  try {await tx(async c=>{
+    const ref=(await c.query('SELECT order_id FROM payments WHERE id=$1',[req.params.id])).rows[0];
+    if(!ref)throw Object.assign(new Error('الدفعة غير موجودة.'),{status:404});
+    // Serialize with collections on the same booking, then receipt confirmation on payment row.
+    await c.query('SELECT id FROM sales_orders WHERE id=$1 FOR UPDATE',[ref.order_id]);
+    const p=(await c.query('SELECT * FROM payments WHERE id=$1 FOR UPDATE',[req.params.id])).rows[0];
+    if(p.status==='voided')return;
+    await c.query("UPDATE payments SET status='voided',void_reason=$1,voided_by=$2,voided_at=now() WHERE id=$3",[reason,req.user.id,p.id]);
+    await c.query("UPDATE invoices SET status='voided',void_reason=$1,voided_by=$2,voided_at=now() WHERE payment_id=$3",[reason,req.user.id,p.id]);
+    if(p.installment_id){
+      const i=(await c.query('SELECT * FROM installments WHERE id=$1 FOR UPDATE',[p.installment_id])).rows[0];
+      const paid=Number((await c.query("SELECT COALESCE(sum(amount),0) AS n FROM payments WHERE installment_id=$1 AND status='active'",[p.installment_id])).rows[0].n);
+      if(i&&paid<Number(i.amount))await c.query("UPDATE installments SET status='pending' WHERE id=$1",[i.id]);
     }
-  });
-  await audit(req, 'payment_voided', 'payment', p.id, { reason, amount: p.amount });
-  res.redirect('/accounting/payments');
+    await c.query("INSERT INTO audit_log(user_id,action,entity,entity_id,details) VALUES($1,'payment_voided','payment',$2,$3)",[req.user.id,String(p.id),JSON.stringify({reason,amount:p.amount,linked_receipt_voided:true})]);
+  });res.redirect('/accounting/payments');}catch(e){res.status(e.status||500).render('error',{title:'تعذر إلغاء التحصيل',message:e.status?e.message:'لم يتغير التحصيل أو الإيصال. أعد المحاولة بعد المراجعة.'});}
 });
 
 // الأقساط
