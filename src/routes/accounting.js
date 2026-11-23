@@ -214,6 +214,11 @@ router.post('/payments', requireCap('payments.create'), async (req, res) => {
       if (amt > parseFloat(order.total_price) - paidSoFar + 0.001) {
         throw Object.assign(new Error(`المبلغ يتجاوز المتبقي على الحجز (${(parseFloat(order.total_price) - paidSoFar).toLocaleString('ar-EG')} ج.م).`), { status: 400 });
       }
+      if(order.payment_type==='installments'&&!installment_id){
+        const plan=(await c.query('SELECT down_payment FROM installment_plans WHERE order_id=$1',[order_id])).rows[0];
+        const downPaid=Number((await c.query("SELECT COALESCE(sum(amount),0) AS n FROM payments WHERE order_id=$1 AND installment_id IS NULL AND status='active'",[order_id])).rows[0].n);
+        if(!plan||amt>Number(plan.down_payment)-downPaid+0.001)throw Object.assign(new Error('اختر القسط المطلوب تحصيله، التحصيل بدون قسط مخصص للمقدم فقط.'),{status:400});
+      }
       const account=(await c.query('SELECT id FROM financial_accounts WHERE id=$1 AND active FOR SHARE',[account_id])).rows[0];
       if(!account)throw Object.assign(new Error('الحساب المالي غير متاح.'),{status:400});
       if(installment_id){
@@ -275,7 +280,8 @@ router.get('/installments', async (req, res) => {
     JOIN sales_orders o ON o.id=p.order_id AND o.status='approved'
     JOIN customers c ON c.id=o.customer_id
     WHERE TRUE ${cond} ORDER BY i.due_date LIMIT 300`);
-  res.render('accounting/installments', { title: 'الأقساط', nav: 'installments', rows, filter, canManage: can(req.user.roles, 'installments.manage'), canPay: can(req.user.roles, 'payments.create') });
+  const accounts=(await q('SELECT id,name FROM financial_accounts WHERE active ORDER BY id')).rows;
+  res.render('accounting/installments', {accounts, title: 'الأقساط', nav: 'installments', rows, filter, canManage: can(req.user.roles, 'installments.manage'), canPay: can(req.user.roles, 'payments.create') });
 });
 
 // تأجيل قسط: الاحتفاظ بالتاريخ الأصلي والسبب والموافقة

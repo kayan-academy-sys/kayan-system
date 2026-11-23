@@ -26,7 +26,7 @@
             <input type="hidden" name="installment_id" value="<%= i.id %>">
             <input type="number" step="0.01" name="amount" value="<%= (parseFloat(i.amount)-parseFloat(i.paid)).toFixed(2) %>" required>
             <select name="method"><% Object.entries(L.paymentMethod).forEach(([k,v]) => { %><option value="<%= k %>"><%= v %></option><% }) %></select>
-            <select name="account_id"><option value="1">الخزينة</option><option value="2">الحساب البنكي</option><option value="3">إنستاباي</option><option value="4">المحفظة الإلكترونية</option></select>
+            <select name="account_id"><% accounts.forEach(a=>{ %><option value="<%= a.id %>"><%= a.name %></option><% }) %></select>
             <button class="btn sm mt">تسجيل</button>
           </form>
         </details>
