@@ -66,8 +66,10 @@ router.get('/finance', requireCap('reports.finance'), async (req, res) => {
   const expenses = (await q(`SELECT e.*, t.name AS type_name, a.name AS account_name
     FROM expenses e JOIN expense_types t ON t.id=e.type_id JOIN financial_accounts a ON a.id=e.account_id
     WHERE ${eConds.join(' AND ')} ORDER BY e.expense_date DESC LIMIT 2000`, eParams)).rows;
-  const totalIn = payments.reduce((s, p) => s + parseFloat(p.amount), 0);
-  const totalOut = expenses.reduce((s, e) => s + parseFloat(e.amount), 0);
+  const pTotals=(await q(`SELECT COALESCE(sum(p.amount),0) AS total,count(*) AS n FROM payments p WHERE ${pConds.join(' AND ')}`,params)).rows[0];
+  const eTotals=(await q(`SELECT COALESCE(sum(e.amount),0) AS total,count(*) AS n FROM expenses e WHERE ${eConds.join(' AND ')}`,eParams)).rows[0];
+  const totalIn=Number(pTotals.total),totalOut=Number(eTotals.total);
+  const truncated=Number(pTotals.n)>payments.length||Number(eTotals.n)>expenses.length;
   const balances = await accountBalances();
   const types = (await q('SELECT * FROM expense_types ORDER BY name')).rows;
   const overdue = (await q(`SELECT cu.name AS customer_name, cu.phone, i.amount, i.due_date
@@ -77,6 +79,7 @@ router.get('/finance', requireCap('reports.finance'), async (req, res) => {
     AND (SELECT COALESCE(sum(pay.amount),0) FROM payments pay WHERE pay.installment_id=i.id AND pay.status='active') < i.amount
     ORDER BY i.due_date LIMIT 500`)).rows;
   if (format === 'csv' && can(req.user.roles, 'reports.export')) {
+    if(truncated)return res.status(400).render('error',{title:'نطاق كبير',message:'حدد فترة أقصر للتصدير، لن يتم تنزيل تقرير ناقص.'});
     res.set('Content-Type', 'text/csv; charset=utf-8');
     res.set('Content-Disposition', 'attachment; filename="finance-report.csv"');
     const rows = payments.map(p => ({ kind: 'إيراد', date: new Date(p.paid_at).toISOString().slice(0, 10), label: p.customer_name, amount: p.amount, account: p.account_name }))
@@ -86,7 +89,7 @@ router.get('/finance', requireCap('reports.finance'), async (req, res) => {
       { key: 'amount', label: 'المبلغ' }, { key: 'account', label: 'الحساب' }
     ]));
   }
-  res.render('reports/finance', { title: 'التقرير المالي', nav: 'reports', payments, expenses, totalIn, totalOut, balances, types, overdue, query: req.query, canExport: can(req.user.roles, 'reports.export') });
+  res.render('reports/finance', { title: 'التقرير المالي', nav: 'reports', truncated, payments, expenses, totalIn, totalOut, balances, types, overdue, query: req.query, canExport: can(req.user.roles, 'reports.export') });
 });
 
 module.exports = router;

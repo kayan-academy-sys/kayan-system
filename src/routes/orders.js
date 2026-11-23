@@ -27,6 +27,7 @@ router.get('/', async (req, res) => {
 
 router.get('/new', requireCap('orders.create'), async (req, res) => {
   const lead = req.query.lead_id ? (await q(`SELECT l.*, c.name AS customer_name, c.phone AS customer_phone, co.name AS course_name FROM leads l JOIN customers c ON c.id=l.customer_id LEFT JOIN courses co ON co.id=l.course_id WHERE l.id=$1`, [req.query.lead_id])).rows[0] : null;
+  if(lead&&!can(req.user.roles,'leads.view.all')&&lead.assigned_to!==req.user.id)return res.status(404).render('error',{title:'غير موجود',message:'الفرصة غير موجودة.'});
   const courses = (await q(`SELECT * FROM courses WHERE status='active' ORDER BY name`)).rows;
   const packages = (await q(`SELECT p.*, (SELECT json_agg(pc.course_id) FROM package_courses pc WHERE pc.package_id=p.id) AS course_ids,
     (SELECT json_agg(c.name) FROM package_courses pc JOIN courses c ON c.id=pc.course_id WHERE pc.package_id=p.id) AS course_names
@@ -47,6 +48,7 @@ router.post('/', requireCap('orders.create'), async (req, res) => {
       if (lead_id) {
         leadRow = (await c.query('SELECT l.*, cu.id AS cid FROM leads l JOIN customers cu ON cu.id=l.customer_id WHERE l.id=$1', [lead_id])).rows[0];
         if (!leadRow) throw Object.assign(new Error('الفرصة غير موجودة.'), { status: 404 });
+        if(!can(req.user.roles,'leads.view.all')&&leadRow.assigned_to!==req.user.id)throw Object.assign(new Error('الفرصة غير موجودة.'),{status:404});
         customerId = leadRow.customer_id;
       } else {
         if (!customer_name || !customer_phone) throw Object.assign(new Error('بيانات العميل إلزامية.'), { status: 400 });
@@ -88,7 +90,7 @@ router.post('/', requireCap('orders.create'), async (req, res) => {
       const order = await c.query(`INSERT INTO sales_orders (customer_id, lead_id, kind, course_id, package_id, total_price, offer_type, payment_type, sales_user_id, status)
         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'approved') RETURNING id`,
         [customerId, lead_id || null, kind === 'package' ? 'package' : 'course', orderCourseId, orderPackageId, total,
-         kind === 'package' ? 'package_discount' : 'none', payment_type === 'installments' ? 'installments' : 'cash', req.user.id]);
+         kind === 'package' ? 'package_discount' : 'none', payment_type === 'installments' ? 'installments' : 'cash', leadRow?.assigned_to||req.user.id]);
       const orderId = order.rows[0].id;
 
       for (const cid of enrollCourses) {
@@ -133,7 +135,7 @@ router.post('/', requireCap('orders.create'), async (req, res) => {
     res.redirect('/orders/' + result.orderId);
   } catch (e) {
     const status = e.status || 500;
-    const lead = lead_id ? (await q(`SELECT l.*, c.name AS customer_name, c.phone AS customer_phone FROM leads l JOIN customers c ON c.id=l.customer_id WHERE l.id=$1`, [lead_id])).rows[0] : null;
+    let lead = lead_id ? (await q(`SELECT l.*, c.name AS customer_name, c.phone AS customer_phone FROM leads l JOIN customers c ON c.id=l.customer_id WHERE l.id=$1`, [lead_id])).rows[0] : null;
     const courses = (await q(`SELECT * FROM courses WHERE status='active' ORDER BY name`)).rows;
     const packages = (await q(`SELECT p.*, (SELECT json_agg(pc.course_id) FROM package_courses pc WHERE pc.package_id=p.id) AS course_ids,
       (SELECT json_agg(c2.name) FROM package_courses pc JOIN courses c2 ON c2.id=pc.course_id WHERE pc.package_id=p.id) AS course_names
@@ -143,6 +145,7 @@ router.post('/', requireCap('orders.create'), async (req, res) => {
       FROM groups g JOIN courses c ON c.id=g.course_id LEFT JOIN trainers t ON t.id=g.trainer_id
       WHERE g.status IN ('open','nearly_full') ORDER BY g.start_date`)).rows;
     const accounts = (await q(`SELECT * FROM financial_accounts WHERE active=TRUE ORDER BY id`)).rows;
+    if(lead&&!can(req.user.roles,'leads.view.all')&&lead.assigned_to!==req.user.id)lead=null;
     res.status(status).render('orders/new', { title: 'حجز جديد', nav: 'orders', lead, courses, packages, groups, accounts, error: e.message });
   }
 });
@@ -198,17 +201,16 @@ router.post('/:id/enrollments/:eid/group', requireCap('groups.manage'), async (r
 router.post('/:id/cancel', requireCap('orders.cancel'), async (req, res) => {
   const { reason } = req.body;
   if (!reason) return res.status(400).render('error', { title: 'سبب مطلوب', message: 'سبب الإلغاء إلزامي.' });
-  const order = (await q('SELECT * FROM sales_orders WHERE id=$1', [req.params.id])).rows[0];
-  if (!order) return res.status(404).render('error', { title: 'غير موجود', message: 'الحجز غير موجود.' });
-  if (order.status === 'cancelled') return res.redirect('/orders/' + order.id);
-  const activePayments = (await q(`SELECT count(*) AS n FROM payments WHERE order_id=$1 AND status='active'`, [order.id])).rows[0].n;
-  await tx(async (c) => {
-    await c.query(`UPDATE sales_orders SET status='cancelled', cancel_reason=$1, cancelled_by=$2, cancelled_at=now() WHERE id=$3`, [reason, req.user.id, order.id]);
-    await c.query(`UPDATE enrollments SET status='cancelled' WHERE order_id=$1`, [order.id]);
-    if (order.lead_id) await c.query(`UPDATE leads SET status='need_follow_up', updated_at=now() WHERE id=$1`, [order.lead_id]);
-  });
-  await audit(req, 'order_cancelled', 'sales_order', order.id, { reason, hadActivePayments: parseInt(activePayments, 10) > 0 });
-  res.redirect('/orders/' + order.id);
+  try{await tx(async c=>{
+    const order=(await c.query('SELECT * FROM sales_orders WHERE id=$1 FOR UPDATE',[req.params.id])).rows[0];
+    if(!order)throw Object.assign(new Error('الحجز غير موجود.'),{status:404});
+    if(order.status==='cancelled')return;
+    if((await c.query("SELECT id FROM payments WHERE order_id=$1 AND status='active' LIMIT 1",[order.id])).rowCount)throw Object.assign(new Error('الحجز له تحصيلات نشطة. راجع الحسابات وعالجها صراحة قبل إلغائه. الإلغاء لا يعني رد فلوس.'),{status:409});
+    await c.query("UPDATE sales_orders SET status='cancelled',cancel_reason=$1,cancelled_by=$2,cancelled_at=now() WHERE id=$3",[reason,req.user.id,order.id]);
+    await c.query("UPDATE enrollments SET status='cancelled' WHERE order_id=$1",[order.id]);
+    if(order.lead_id)await c.query("UPDATE leads SET status='need_follow_up',updated_at=now() WHERE id=$1",[order.lead_id]);
+    await c.query("INSERT INTO audit_log(user_id,action,entity,entity_id,details) VALUES($1,'order_cancelled','sales_order',$2,$3)",[req.user.id,String(order.id),JSON.stringify({reason})]);
+  });res.redirect('/orders/'+req.params.id);}catch(e){res.status(e.status||500).render('error',{title:'تعذر إلغاء الحجز',message:e.status?e.message:'لم يتم الإلغاء.'});}
 });
 
 module.exports = router;

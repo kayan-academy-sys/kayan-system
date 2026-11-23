@@ -15,7 +15,7 @@ async function loadUser(req, res, next) {
       res.locals.user = req.user;
       res.locals.can = (cap) => can(req.user.roles, cap);
     } else {
-      req.session = null;
+      req.session = {};
     }
   }
   // CSRF token per session

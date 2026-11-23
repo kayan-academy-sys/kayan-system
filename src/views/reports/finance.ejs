@@ -1,4 +1,5 @@
 <%- include('../partials/top', {title, nav:'reports'}) %>
+<% if(truncated){ %><div class="alert info">الإجماليات تشمل كل الحركات المطابقة. قائمة التفاصيل محدودة بأحدث 2000 حركة، ضيّق الفترة لرؤية وتصدير كل التفاصيل.</div><% } %>
 <div class="card">
   <form method="get" class="form-row" style="margin-bottom:12px">
     <div><label>من</label><input type="date" name="from" value="<%= query.from || '' %>"></div>

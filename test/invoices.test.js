@@ -120,3 +120,51 @@ test('collection, installment, treasury and receipt reversal reconcile atomicall
  assert.equal((await acc.withCsrf('post','/accounting/payments',{...b,order_id:foreign,amount:'1'})).status,400);
  assert.equal((await acc.withCsrf('post','/accounting/payments',{...b,amount:'500.001'})).status,400);
 });
+
+test('paid booking cannot be cancelled; resolved booking cancellation is idempotent',async()=>{
+ const mgr=await loginAgent('am@test');const p=(await q("SELECT * FROM payments WHERE status='active' LIMIT 1")).rows[0];
+ assert.equal((await mgr.withCsrf('post',`/orders/${p.order_id}/cancel`,{reason:'اختبار منع الإلغاء'})).status,409);
+ assert.equal((await q('SELECT status FROM sales_orders WHERE id=$1',[p.order_id])).rows[0].status,'approved');
+ const o=(await q("INSERT INTO sales_orders(customer_id,kind,course_id,total_price,payment_type,sales_user_id,status) SELECT customer_id,kind,course_id,500,'cash',sales_user_id,'approved' FROM sales_orders WHERE id=$1 RETURNING id",[p.order_id])).rows[0].id;
+ const r=await Promise.all([mgr.withCsrf('post',`/orders/${o}/cancel`,{reason:'إلغاء وهمي'}),mgr.withCsrf('post',`/orders/${o}/cancel`,{reason:'تكرار'})]);assert.ok(r.every(x=>x.status===302));
+ assert.equal((await q("SELECT count(*) AS n FROM audit_log WHERE action='order_cancelled' AND entity_id=$1",[String(o)])).rows[0].n,'1');
+});
+
+test('sales customer lookup cannot bypass ownership; disabling user revokes session without crashing',async()=>{
+ const a=await loginAgent('s1@test'),b=await loginAgent('s2@test');
+ const customer=(await q("SELECT id FROM customers WHERE name='عميل ربط وهمي'")).rows[0].id;
+ assert.equal((await a.agent.get('/customers/'+customer)).status,200);
+ assert.equal((await b.agent.get('/customers/'+customer)).status,404);
+ assert.doesNotMatch((await b.agent.get('/customers?q=TST-ORDER')).text,/عميل ربط وهمي/);
+ assert.equal((await b.withCsrf('post',`/customers/${customer}/edit`,{name:'bad',phone:'bad'})).status,403);
+ await q("UPDATE users SET active=false WHERE email='s2@test'");
+ const revoked=await b.agent.get('/');assert.equal(revoked.status,302);assert.match(revoked.headers.location,/login/);
+});
+
+test('booking from a lead preserves assigned salesperson and hides another salespersons lead',async()=>{
+ const sm=await loginAgent('sm@test'),staff=await loginAgent('s1@test');
+ const cust=(await q("INSERT INTO customers(name,phone) VALUES('اختبار إسناد وهمي','ATTR-TEST') RETURNING id")).rows[0].id;
+ const u=(await q("SELECT id FROM users WHERE email='s1@test'")).rows[0].id;const course=(await q('SELECT id FROM courses LIMIT 1')).rows[0].id;
+ const lead=(await q("INSERT INTO leads(customer_id,source,assigned_to,course_id) VALUES($1,'manual',$2,$3) RETURNING id",[cust,u,course])).rows[0].id;
+ assert.equal((await sm.withCsrf('post','/orders',{lead_id:lead,kind:'course',course_id:course,payment_type:'cash'})).status,302);
+ assert.equal((await q('SELECT sales_user_id FROM sales_orders WHERE lead_id=$1',[lead])).rows[0].sales_user_id,u);
+ const other=(await q("SELECT id FROM users WHERE email='s2@test'")).rows[0].id;await q('UPDATE leads SET assigned_to=$1 WHERE id=$2',[other,lead]);
+ assert.equal((await staff.agent.get('/orders/new?lead_id='+lead)).status,404);
+ const denied=await staff.withCsrf('post','/orders',{lead_id:lead,kind:'course',course_id:course,payment_type:'cash'});assert.equal(denied.status,404);assert.doesNotMatch(denied.text,/اختبار إسناد وهمي/);
+});
+
+test('finance totals include records beyond detail cap; export refuses truncated results',async()=>{
+ const mgr=await loginAgent('am@test');const p=(await q('SELECT * FROM payments LIMIT 1')).rows[0];
+ await q("INSERT INTO payments(order_id,amount,method,account_id) SELECT $1,1,'cash',$2 FROM generate_series(1,2001)",[p.order_id,p.account_id]);
+ const total=Number((await q("SELECT sum(amount) AS n FROM payments WHERE status='active'")).rows[0].n);
+ const page=await mgr.agent.get('/reports/finance');assert.equal(page.status,200);assert.match(page.text,/الإجماليات تشمل كل الحركات/);assert.ok(page.text.includes(total.toLocaleString('ar-EG')));
+ assert.equal((await mgr.agent.get('/reports/finance?format=csv')).status,400);
+});
+
+test('manual JSON export is a complete transactional snapshot restricted to backup role',async()=>{
+ const admin=await loginAgent('admin@test'),staff=await loginAgent('as@test');
+ assert.equal((await staff.agent.get('/admin/backup/download')).status,403);
+ const r=await admin.agent.get('/admin/backup/download');assert.equal(r.status,200);assert.equal(r.body.app,'kayan-system');
+ assert.equal(r.body.tables.payments.length,Number((await q('SELECT count(*) AS n FROM payments')).rows[0].n));
+ assert.ok(r.body.tables.users);assert.ok(r.body.tables.invoices);assert.ok(r.headers['content-disposition'].includes('attachment'));
+});

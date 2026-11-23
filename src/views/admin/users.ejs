@@ -8,7 +8,7 @@
   <div class="card">
     <h2>إضافة مستخدم جديد</h2>
     <% if (canManage) { %>
-    <p class="muted">يُرسل النظام دعوة بالبريد المحدد، والموظف يعيّن كلمة مروره بنفسه من الرابط.</p>
+    <p class="muted">ينشئ النظام رابط دعوة للبريد المحدد، انسخه وأرسله للموظف ليعيّن كلمة مروره. الإرسال بالبريد ليس تلقائيًا.</p>
     <form method="post" action="/admin/users/invite">
       <input type="hidden" name="_csrf" value="<%= csrf %>">
       <div class="form-row">

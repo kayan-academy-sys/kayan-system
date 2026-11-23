@@ -22,7 +22,7 @@ router.post('/login', loginRateLimit, async (req, res) => {
   req.session.userId = user.id;
   await q('UPDATE users SET last_login_at=now() WHERE id=$1', [user.id]);
   await audit(req, 'login', 'user', user.id, {});
-  res.redirect(next && next.startsWith('/') ? next : '/');
+  res.redirect(next && next.startsWith('/') && !next.startsWith('//') && !next.includes('\\') ? next : '/');
 });
 
 router.post('/logout', async (req, res) => {

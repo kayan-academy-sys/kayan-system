@@ -184,14 +184,14 @@ router.post('/backup/run', requireCap('backups.manage'), async (req, res) => {
 
 // تنزيل نسخة كاملة من كل البيانات بصيغة JSON (نسخة يدوية يحتفظ بها المدير)
 router.get('/backup/download', requireCap('backups.manage'), async (req, res) => {
-  const tables = (await q(
-    `SELECT table_name FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE' ORDER BY table_name`
-  )).rows.map(r => r.table_name).filter(t => t !== '_migrations');
-  const out = { app: 'kayan-system', format: 'json-export-v1', generated_at: new Date().toISOString(), tables: {} };
-  for (const t of tables) {
-    const ident = '"' + t.replace(/"/g, '""') + '"';
-    out.tables[t] = (await q(`SELECT row_to_json(x) AS j FROM ${ident} x`)).rows.map(r => r.j);
-  }
+  const out=await tx(async c=>{
+    await c.query('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY');
+    const tables=(await c.query("SELECT table_name FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE' ORDER BY table_name")).rows.map(r=>r.table_name).filter(t=>t!=='_migrations');
+    const exportData={app:'kayan-system',format:'json-export-v1',generated_at:new Date().toISOString(),tables:{}};
+    for(const t of tables){const ident='"'+t.replace(/"/g,'""')+'"';exportData.tables[t]=(await c.query(`SELECT row_to_json(x) AS j FROM ${ident} x`)).rows.map(r=>r.j);}
+    return exportData;
+  });
+  const tables=Object.keys(out.tables);
   await audit(req, 'backup.download', 'backup', null, { tables: tables.length });
   const stamp = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14);
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
