@@ -12,7 +12,7 @@
       <td><%= o.kind==='package' ? o.package_name : o.course_name %></td>
       <td><%= Number(o.total_price).toLocaleString('ar-EG') %></td>
       <td><%= Number(o.paid).toLocaleString('ar-EG') %></td>
-      <td><% if (rem > 0) { %><span class="badge red"><%= rem.toLocaleString('ar-EG') %></span><% } else { %><span class="badge green">مسدد</span><% } %></td>
+      <td><% if(o.status==='cancelled'){ %><span class="muted">غير مستحق، حجز ملغي</span><% }else if (rem > 0) { %><span class="badge red"><%= rem.toLocaleString('ar-EG') %></span><% } else { %><span class="badge green">مسدد</span><% } %></td>
       <td><%= o.payment_type==='installments'?'تقسيط':'نقدي' %></td>
       <td><span class="badge <%= o.status==='approved'?'green':o.status==='cancelled'?'red':'orange' %>"><%= L.orderStatus[o.status] %></span></td>
       <td class="muted"><%= o.sales_name || '—' %></td>

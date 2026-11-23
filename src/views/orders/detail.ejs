@@ -7,7 +7,7 @@
       <tr><th>النوع</th><td><%= order.kind==='package' ? 'باقة: ' + order.package_name : 'كورس: ' + order.course_name %></td></tr>
       <tr><th>السعر المعتمد</th><td><%= Number(order.total_price).toLocaleString('ar-EG') %> ج.م</td></tr>
       <tr><th>المدفوع</th><td class="badge green"><%= paid.toLocaleString('ar-EG') %> ج.م</td></tr>
-      <tr><th>المتبقي</th><td><% if (remaining > 0) { %><span class="badge red"><%= remaining.toLocaleString('ar-EG') %> ج.م</span><% } else { %><span class="badge green">مسدد بالكامل</span><% } %></td></tr>
+      <tr><th><%= order.status==='cancelled'?'فرق العقد التاريخي':'المتبقي' %></th><td><% if(order.status==='cancelled'){ %><span class="muted"><%= remaining.toLocaleString('ar-EG') %> ج.م، غير مطلوب للتحصيل بعد الإلغاء</span><% }else if (remaining > 0) { %><span class="badge red"><%= remaining.toLocaleString('ar-EG') %> ج.م</span><% } else { %><span class="badge green">مسدد بالكامل</span><% } %></td></tr>
       <tr><th>طريقة الدفع</th><td><%= order.payment_type==='installments'?'تقسيط':'نقدي' %></td></tr>
       <tr><th>الحالة</th><td><span class="badge <%= order.status==='approved'?'green':'red' %>"><%= L.orderStatus[order.status] %></span></td></tr>
       <tr><th>موظف المبيعات</th><td><%= order.sales_name || '—' %></td></tr>
@@ -45,17 +45,18 @@
 </div>
 <% if (plan) { %>
 <div class="card">
+  <% if(order.status==='cancelled'){ %><div class="alert info">خطة تاريخية لحجز ملغي، ليست أقساطًا مستحقة ولا تُرسل عنها تنبيهات تحصيل.</div><% } %>
   <h2>خطة التقسيط (مخطط السداد): مقدم <%= Number(plan.down_payment).toLocaleString('ar-EG') %> + <%= plan.count %> أقساط</h2>
   <p class="muted">المقدم مبلغ مخطَّط عند التعاقد وليس إثبات استلام؛ يصبح محصَّلًا فقط عند تسجيله كدفعة فعلية في قسم المدفوعات أعلاه.</p>
   <table>
     <tr><th>القسط</th><th>القيمة</th><th>الاستحقاق</th><th>الاستحقاق الأصلي</th><th>المدفوع</th><th>الحالة</th></tr>
-    <% installments.forEach(i => { const isLate = i.status==='pending' && new Date(i.due_date) < new Date(); %>
+    <% installments.forEach(i => { const isLate = order.status!=='cancelled' && i.status==='pending' && new Date(i.due_date) < new Date(); %>
     <tr style="<%= isLate ? 'background:#fdeae8' : '' %>">
       <td><%= i.seq %></td><td><%= Number(i.amount).toLocaleString('ar-EG') %></td>
       <td><%= new Date(i.due_date).toLocaleDateString('ar-EG') %><%= isLate ? ' ⚠️ متأخر' : '' %></td>
       <td class="muted"><%= new Date(i.original_due_date).toLocaleDateString('ar-EG') %><%= String(i.original_due_date).slice(0,10)!==String(i.due_date).slice(0,10) ? ' (مؤجل: ' + (i.postpone_reason||'') + ')' : '' %></td>
       <td><%= Number(i.paid).toLocaleString('ar-EG') %></td>
-      <td><span class="badge <%= i.status==='paid'?'green':isLate?'red':'teal' %>"><%= i.status==='paid'?'مسدد':isLate?'متأخر':'قادم' %></span></td>
+      <td><span class="badge <%= i.status==='paid'?'green':isLate?'red':'teal' %>"><%= order.status==='cancelled'?'تاريخي، غير مستحق':i.status==='paid'?'مسدد':isLate?'متأخر':'قادم' %></span></td>
     </tr>
     <% }) %>
   </table>
