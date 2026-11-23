@@ -1,0 +1,6 @@
+const {test}=require('node:test'),assert=require('node:assert/strict'),{validate}=require('../scripts/validate-migration.cjs');
+function data(){return{customers:[{external_id:'c',name:'customer',phone:'010000'}],courses:[{external_id:'co',price:'100'}],staff:[{external_id:'s',name:'sales',email:'sales@example.test',role:'sales_staff'}],orders:[{external_id:'o',customer_id:'c',course_id:'co',sales_id:'s',total:'100',status:'approved'}],payments:[{external_id:'p',order_id:'o',amount:'20',status:'active'}],opening_balances:[]};}
+test('migration preflight computes exact cents and never imports',()=>{let r=validate(data());assert.equal(r.ok,true);assert.equal(r.approved_orders_cents,10000);assert.equal(r.active_collections_cents,2000);assert.equal(r.mode,'offline_preflight_only_not_import_approval');});
+test('migration preflight rejects duplicate, unresolved, overpaid, cancelled and secret data',()=>{
+ for(const mutate of [d=>d.customers.push(d.customers[0]),d=>d.orders[0].course_id='missing',d=>d.payments[0].amount='101',d=>d.orders[0].status='cancelled',d=>d.staff[0].password='forbidden',d=>d.customers[0].phone='TEST-001',d=>d.opening_balances.push({external_id:'a',amount:'0'})]){const d=data();mutate(d);assert.equal(validate(d).ok,false);}
+});
