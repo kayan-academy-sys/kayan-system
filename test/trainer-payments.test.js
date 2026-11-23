@@ -196,10 +196,15 @@ test('preview fixture is the only payout permitted with global gate off',async()
   for(const a of [admin,staff])a.agent.jar.setCookie('kayan_gate='+ts+'.'+sig+'; Path=/');
   assert.equal((await staff.withCsrf('post','/accounting/trainers/preview-fixture',{})).status,403);
   assert.equal((await admin.withCsrf('post','/accounting/trainers/preview-fixture',{})).status,302);
+  assert.equal((await admin.withCsrf('post','/accounting/trainers/preview-fixture',{})).status,302);
+  assert.equal((await q('SELECT count(*) AS n FROM trainer_preview_fixture')).rows[0].n,'1');
+  assert.equal((await admin.agent.get('/accounting/trainers')).status,200);
   const f=(await q('SELECT * FROM trainer_preview_fixture WHERE id=1')).rows[0];
   const body={trainer_id:f.trainer_id,group_id:f.group_id,account_id:f.account_id,amount:'200',method:'cash',synthetic:'on'};
   assert.equal((await staff.withCsrf('post','/accounting/trainers/payments',{...body,synthetic:''})).status,409);
   assert.equal((await staff.withCsrf('post','/accounting/trainers/payments',{...body,account_id:1})).status,409);
+  assert.equal((await staff.withCsrf('post','/accounting/trainers/payments',{...body,group_id:''})).status,409);
+  assert.equal((await staff.withCsrf('post','/accounting/trainers/payments',{...body,amount:'200.001'})).status,400);
   assert.equal((await staff.withCsrf('post','/accounting/trainers/payments',body)).status,302);
   assert.equal(await bal(f.account_id),-200);
   const p=(await q('SELECT * FROM trainer_payments WHERE trainer_id=$1',[f.trainer_id])).rows[0];

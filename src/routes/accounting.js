@@ -72,7 +72,7 @@ const ALLOW_TRAINER_ADVANCES = false;
 // This setup creates only new fictional rows, never reclassifies existing records.
 router.post('/trainers/preview-fixture', async(req,res)=>{
  if(process.env.PREVIEW_GATE_REQUIRED!=='1'||req.user.role!=='admin')return res.status(403).render('error',{title:'غير مسموح',message:'اختبار المعاينة لمسؤول النظام فقط.'});
- await tx(async c=>{
+ try{await tx(async c=>{
   await c.query('LOCK TABLE trainer_preview_fixture IN EXCLUSIVE MODE');
   if((await c.query('SELECT id FROM trainer_preview_fixture')).rowCount)return;
   const t=(await c.query("INSERT INTO trainers(name) VALUES('محاضر وهمي - قبول ربط المصروف') RETURNING id")).rows[0].id;
@@ -84,6 +84,7 @@ router.post('/trainers/preview-fixture', async(req,res)=>{
  });
  await audit(req,'trainer_preview_fixture_ready','trainer_preview_fixture',1,{synthetic:true});
  res.redirect('/accounting/trainers');
+ }catch(e){res.status(409).render('error',{title:'تعذر إعداد الاختبار',message:'لم يتم إنشاء الحالة الوهمية. راجع سجل المراجعة قبل إعادة المحاولة.'});}
 });
 // حساب المحاضرين — مبلغ متفق عليه لكل مجموعة يُستحق عند انتهائها (حالة finished)
 router.get('/trainers', async (req, res) => {
