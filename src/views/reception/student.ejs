@@ -29,4 +29,7 @@
     <p class="muted">الاستقبال لا يستطيع تعديل الأسعار أو المدفوعات؛ للتحصيل توجه لقسم الحسابات.</p>
   </div>
 </div>
+<div class="card"><h2>سجل الحضور والتصحيح</h2><table><tr><th>التاريخ</th><th>المجموعة</th><th>الموضوع</th><th>الحضور الحالي</th><th>حالة المحاضرة</th><th>ملاحظات</th><th></th></tr>
+<% history.forEach(h=>{ %><tr><td><%= new Date(h.session_date).toLocaleDateString('ar-EG') %></td><td><%= h.group_name %></td><td><%= h.topic||'—' %></td><td><%= ({present:'حاضر',absent:'غائب',late:'متأخر',excused:'بعذر'})[h.status] %></td><td><%= h.session_status==='cancelled'?'ملغاة (سجل تاريخي)':h.session_status %></td><td><%= h.notes||'—' %></td><td><a href="/reception/sessions/<%= h.session_id %>/attendance">مراجعة الحضور</a></td></tr><% }) %>
+<% if(!history.length){ %><tr><td colspan="7">لا توجد سجلات حضور.</td></tr><% } %></table><p class="muted">يعرض آخر حالة لكل محاضرة. تفاصيل التعديلات محفوظة في سجل المراجعة للإدارة.</p></div>
 <%- include('../partials/bottom') %>

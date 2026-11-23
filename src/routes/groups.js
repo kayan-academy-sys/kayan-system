@@ -27,6 +27,7 @@ router.get('/', async (req, res) => {
 router.post('/', requireCap('groups.manage'), async (req, res) => {
   const { course_id, trainer_id, name, start_date, end_date, capacity, days_of_week, time_from, time_to, status } = req.body;
   const validStatus = ['draft','open'];
+  if(!Number.isInteger(Number(capacity))||Number(capacity)<1)return res.status(400).render('error',{title:'سعة غير صالحة',message:'السعة عدد صحيح موجب.'});
   await q(`INSERT INTO groups (course_id, trainer_id, name, start_date, end_date, capacity, days_of_week, time_from, time_to, status, created_by)
     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
     [course_id, trainer_id || null, name.trim(), start_date || null, end_date || null, parseInt(capacity) || 20,
@@ -64,8 +65,14 @@ router.post('/:id/enroll', requireCap('groups.manage'), async (req, res) => {
 router.post('/:id/edit', requireCap('groups.manage'), async (req, res) => {
   const { trainer_id, name, start_date, end_date, capacity, days_of_week, time_from, time_to, status } = req.body;
   const validStatus = ['draft','open','nearly_full','full','running','finished','cancelled'];
-  await q(`UPDATE groups SET trainer_id=$1, name=$2, start_date=$3, end_date=$4, capacity=$5, days_of_week=$6, time_from=$7, time_to=$8, status=$9 WHERE id=$10`,
-    [trainer_id || null, name.trim(), start_date || null, end_date || null, parseInt(capacity) || 20, days_of_week || null, time_from || null, time_to || null, validStatus.includes(status) ? status : 'draft', req.params.id]);
+  if(!Number.isInteger(Number(capacity))||Number(capacity)<1)return res.status(400).render('error',{title:'سعة غير صالحة',message:'السعة عدد صحيح موجب.'});
+  try{await tx(async c=>{
+    await c.query('SELECT id FROM groups WHERE id=$1 FOR UPDATE',[req.params.id]);
+    const n=Number((await c.query("SELECT count(*) AS n FROM enrollments WHERE group_id=$1 AND status='active'",[req.params.id])).rows[0].n);
+    if(Number(capacity)<n)throw Object.assign(Error('لا يمكن خفض السعة عن عدد الطلاب المسجلين.'),{status:409});
+  await c.query(`UPDATE groups SET trainer_id=$1, name=$2, start_date=$3, end_date=$4, capacity=$5, days_of_week=$6, time_from=$7, time_to=$8, status=$9 WHERE id=$10`,
+    [trainer_id || null, name.trim(), start_date || null, end_date || null, Number(capacity), days_of_week || null, time_from || null, time_to || null, validStatus.includes(status) ? status : 'draft', req.params.id]);
+  });}catch(e){return res.status(e.status||500).render('error',{title:'تعذر التعديل',message:e.status?e.message:'لم يتم التعديل.'});}
   await audit(req, 'group_updated', 'group', req.params.id, { name, status });
   res.redirect('/groups/' + req.params.id);
 });

@@ -61,11 +61,12 @@ router.get('/students/:id', async (req, res) => {
     (SELECT count(*) FROM attendance a JOIN sessions s ON s.id=a.session_id WHERE a.enrollment_id=e.id AND a.status='absent') AS absent
     FROM enrollments e JOIN courses c ON c.id=e.course_id LEFT JOIN groups g ON g.id=e.group_id LEFT JOIN trainers t ON t.id=g.trainer_id
     WHERE e.customer_id=$1 ORDER BY e.id DESC`, [student.id])).rows;
+  const history=(await q(`SELECT a.status,a.notes,a.checked_at,s.id AS session_id,s.session_date,s.topic,s.status AS session_status,g.name AS group_name FROM attendance a JOIN enrollments e ON e.id=a.enrollment_id JOIN sessions s ON s.id=a.session_id JOIN groups g ON g.id=s.group_id WHERE e.customer_id=$1 ORDER BY s.session_date DESC,s.start_time DESC`,[student.id])).rows;
   // الحالة المالية في حدود الحاجة التشغيلية
   const finances = (await q(`SELECT o.id, o.total_price, o.status, o.kind,
     COALESCE((SELECT sum(p.amount) FROM payments p WHERE p.order_id=o.id AND p.status='active'),0) AS paid
     FROM sales_orders o WHERE o.customer_id=$1 AND o.status='approved'`, [student.id])).rows;
-  res.render('reception/student', { title: 'ملف الطالب', nav: 'reception', student, enrollments, finances });
+  res.render('reception/student', { title: 'ملف الطالب', nav: 'reception', student, enrollments, finances, history });
 });
 
 // صفحة تسجيل حضور محاضرة
@@ -76,7 +77,7 @@ router.get('/sessions/:id/attendance', requireCap('attendance.record', 'attendan
     (SELECT json_build_object('status',a.status,'notes',a.notes,'checked_at',a.checked_at) FROM attendance a WHERE a.session_id=$1 AND a.enrollment_id=e.id) AS att
     FROM enrollments e JOIN customers cu ON cu.id=e.customer_id
     WHERE e.group_id=$2 AND e.status='active' ORDER BY cu.name`, [s.id, s.group_id])).rows;
-  res.render('reception/attendance', { title: 'حضور: ' + s.group_name, nav: 'reception', s, students, canRecord: can(req.user.roles, 'attendance.record') });
+  res.render('reception/attendance', { title: 'حضور: ' + s.group_name, nav: 'reception', s, students, canRecord: can(req.user.roles, 'attendance.record') && s.status!=='cancelled' });
 });
 
 router.post('/sessions/:id/attendance', requireCap('attendance.record'), async (req, res) => {
@@ -92,8 +93,9 @@ router.post('/sessions/:id/attendance', requireCap('attendance.record'), async (
     const e=(await c.query("SELECT e.id FROM enrollments e JOIN sales_orders o ON o.id=e.order_id WHERE e.id=$1 AND e.group_id=$2 AND e.status='active' AND o.status='approved' FOR SHARE OF e,o",[eid,s.group_id])).rows[0];
     if(!e)throw Object.assign(Error('الطالب ليس مسجلا نشطا في مجموعة هذه المحاضرة.'),{status:400});
    }
+   const previous=(await c.query('SELECT enrollment_id,status,notes FROM attendance WHERE session_id=$1',[s.id])).rows;
    for(const [k,status] of entries){const eid=Number(k.slice(4));await c.query(`INSERT INTO attendance(session_id,enrollment_id,status,checked_by,notes) VALUES($1,$2,$3,$4,$5) ON CONFLICT(session_id,enrollment_id) DO UPDATE SET status=$3,checked_by=$4,checked_at=now(),notes=$5`,[s.id,eid,status,req.user.id,req.body['notes_'+eid]||null]);}
-   await c.query("INSERT INTO audit_log(user_id,action,entity,entity_id,details) VALUES($1,'attendance_recorded','session',$2,$3)",[req.user.id,String(s.id),JSON.stringify({count:entries.length})]);
+   await c.query("INSERT INTO audit_log(user_id,action,entity,entity_id,details) VALUES($1,'attendance_recorded','session',$2,$3)",[req.user.id,String(s.id),JSON.stringify({count:entries.length,previous,updated:entries.map(([k,status])=>({enrollment_id:Number(k.slice(4)),status,notes:req.body['notes_'+k.slice(4)]||null}))})]);
   });res.redirect('/reception/sessions/'+req.params.id+'/attendance');
   }catch(e){res.status(e.status||500).render('error',{title:'تعذر تسجيل الحضور',message:e.status?e.message:'لم يتم الحفظ.'});}
 });
