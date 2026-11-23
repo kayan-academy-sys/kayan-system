@@ -42,11 +42,18 @@ function tafqeet(n) {
 }
 
 // سطر المبلغ كتابةً كما في إيصال المركز: «ثلاثة آلاف وخمسمائة جنيه فقط لا غير»
-function amountInWords(pounds, piastres) {
-  let s = tafqeet(pounds) + ' جنيه';
-  const p = Math.floor(Number(piastres) || 0);
-  if (p > 0) s += ' و' + tafqeet(p) + ' قرش';
-  return s + ' فقط لا غير';
+function currencyWords(n, singular, dual, plural) {
+  if(n===1)return singular+' واحد';
+  if(n===2)return dual;
+  if(n>=3 && n<=10)return tafqeet(n)+' '+plural;
+  return tafqeet(n).replace(/مائتان$/,'مائتا').replace(/ألفان$/,'ألفا').replace(/مليونان$/,'مليونا')+' '+singular;
 }
-
+function amountInWords(pounds, piastres) {
+  const g=Number(pounds),p=Number(piastres);
+  if(!Number.isSafeInteger(g)||g<0||g>999999999||!Number.isInteger(p)||p<0||p>99)throw new RangeError('Expected integer pounds and piastres 0..99');
+  const parts=[];
+  if(g>0 || p===0)parts.push(currencyWords(g,'جنيه','جنيهان','جنيهات'));
+  if(p>0)parts.push(currencyWords(p,'قرش','قرشان','قروش'));
+  return parts.join(' و')+' فقط لا غير';
+}
 module.exports = { tafqeet, amountInWords };
