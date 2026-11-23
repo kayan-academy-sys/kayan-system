@@ -117,6 +117,7 @@ router.post('/trainers/terms', requireCap('expenses.create'), async (req, res) =
 
 // تسجيل دفعة لمحاضر — تُنشئ مصروفًا مرتبطًا في نفس المعاملة فيخصم من الحساب المختار
 router.post('/trainers/payments', requireCap('expenses.create'), async (req, res) => {
+  if (process.env.TRAINER_WRITES_APPROVED !== 'true') return res.status(409).render('error', {title:'معاينة فقط', message:'تسجيل دفعات المحاضرين موقوف مؤقتًا لحين اكتمال التحقق.'});
   const amount = parseFloat(req.body.amount);
   const method = req.body.method;
   if (!(amount > 0) || !['cash','bank_transfer','instapay','wallet'].includes(method) || !req.body.account_id) {
@@ -129,16 +130,17 @@ router.post('/trainers/payments', requireCap('expenses.create'), async (req, res
     const g = (await q('SELECT id, trainer_id FROM groups WHERE id=$1', [groupId])).rows[0];
     if (!g || g.trainer_id !== t.id) return res.status(400).render('error', { title: 'قيمة غير صالحة', message: 'المجموعة لا تتبع هذا المحاضر.' });
   }
-  if (!ALLOW_TRAINER_ADVANCES) {
-    const earned = parseFloat((await q(`SELECT COALESCE(sum(tm.agreed_amount),0) AS s FROM trainer_group_terms tm JOIN groups g ON g.id=tm.group_id WHERE tm.trainer_id=$1 AND g.status='finished'`, [t.id])).rows[0].s);
-    const paid = parseFloat((await q(`SELECT COALESCE(sum(amount),0) AS s FROM trainer_payments WHERE trainer_id=$1 AND status='active'`, [t.id])).rows[0].s);
-    const available = earned - paid;
-    if (amount > available + 1e-9) {
-      return res.status(400).render('error', { title: 'يتجاوز المستحق', message: `المبلغ يتجاوز الرصيد المستحق المتاح (${available.toLocaleString('ar-EG')} ج.م). الدفعات المقدمة موقوفة لحين اعتماد المالك قاعدتها.` });
-    }
-  }
   try {
     const paymentId = await tx(async (c) => {
+      await c.query('SELECT id FROM trainers WHERE id=$1 FOR UPDATE', [t.id]);
+  if (!ALLOW_TRAINER_ADVANCES) {
+    const earned = parseFloat((await c.query(`SELECT COALESCE(sum(tm.agreed_amount),0) AS s FROM trainer_group_terms tm JOIN groups g ON g.id=tm.group_id WHERE tm.trainer_id=$1 AND g.status='finished'`, [t.id])).rows[0].s);
+    const paid = parseFloat((await c.query(`SELECT COALESCE(sum(amount),0) AS s FROM trainer_payments WHERE trainer_id=$1 AND status='active'`, [t.id])).rows[0].s);
+    const available = earned - paid;
+    if (amount > available + 1e-9) {
+      throw Object.assign(new Error(`المبلغ يتجاوز الرصيد المستحق المتاح (${available.toLocaleString('ar-EG')} ج.م). الدفعات المقدمة موقوفة لحين اعتماد المالك قاعدتها.`), {status:400});
+    }
+  }
       const type = (await c.query(`SELECT id FROM expense_types WHERE name='مستحقات محاضرين'`)).rows[0];
       const exp = await c.query(`INSERT INTO expenses (type_id, amount, expense_date, account_id, recorded_by, notes) VALUES ($1,$2,current_date,$3,$4,$5) RETURNING id`,
         [type.id, amount, req.body.account_id, req.user.id, ('دفعة محاضر: ' + t.name) + (req.body.notes ? ' — ' + req.body.notes : '')]);
@@ -282,6 +284,7 @@ router.post('/expenses', requireCap('expenses.create'), async (req, res) => {
 router.post('/expenses/:id/void', requireCap('expenses.void'), async (req, res) => {
   const { reason } = req.body;
   if (!reason) return res.status(400).render('error', { title: 'سبب مطلوب', message: 'سبب الإلغاء إلزامي.' });
+  if ((await q('SELECT id FROM trainer_payments WHERE expense_id=$1', [req.params.id])).rowCount) return res.status(409).render('error', {title:'مصروف مرتبط', message:'يجب إلغاء هذه الدفعة من حساب المحاضرين ليتم إلغاء السجلين معًا.'});
   await q(`UPDATE expenses SET status='voided', void_reason=$1, voided_by=$2, voided_at=now() WHERE id=$3 AND status='active'`, [reason, req.user.id, req.params.id]);
   await audit(req, 'expense_voided', 'expense', req.params.id, { reason });
   res.redirect('/accounting/expenses');
