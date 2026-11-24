@@ -50,8 +50,12 @@ router.get('/:id', async (req, res) => {
 router.post('/:id/edit', requireCap('groups.manage'), async (req, res) => {
   const { trainer_id, name, start_date, end_date, capacity, days_of_week, time_from, time_to, status } = req.body;
   const validStatus = ['draft','open','nearly_full','full','running','finished','cancelled'];
-  await q(`UPDATE groups SET trainer_id=$1, name=$2, start_date=$3, end_date=$4, capacity=$5, days_of_week=$6, time_from=$7, time_to=$8, status=$9 WHERE id=$10`,
+  try {await tx(async c=>{
+    const prior=(await c.query('SELECT trainer_id,status FROM groups WHERE id=$1 FOR UPDATE',[req.params.id])).rows[0];
+    if((await c.query("SELECT to_regclass('public.trainer_payments') AS t")).rows[0].t && prior && (String(prior.trainer_id||'')!==String(trainer_id||'') || status!=='finished') && (await c.query("SELECT id FROM trainer_payments WHERE group_id=$1 AND status='active' LIMIT 1",[req.params.id])).rowCount)throw Object.assign(new Error('للمجموعة دفعات محاضر قائمة. ألغها من الحسابات قبل تغيير المحاضر أو إعادة فتح المجموعة.'),{status:409});
+    await c.query(`UPDATE groups SET trainer_id=$1, name=$2, start_date=$3, end_date=$4, capacity=$5, days_of_week=$6, time_from=$7, time_to=$8, status=$9 WHERE id=$10`,
     [trainer_id || null, name.trim(), start_date || null, end_date || null, parseInt(capacity) || 20, days_of_week || null, time_from || null, time_to || null, validStatus.includes(status) ? status : 'draft', req.params.id]);
+  });}catch(e){return res.status(e.status||500).render('error',{title:'لم تتغير المجموعة',message:e.status?e.message:'لم يتم حفظ التعديل. راجع المسؤول.'});}
   await audit(req, 'group_updated', 'group', req.params.id, { name, status });
   res.redirect('/groups/' + req.params.id);
 });

@@ -1,0 +1,88 @@
+<%- include('../partials/top', {title, nav:'trainer-accounts'}) %>
+<div class="alert info"><%= process.env.TRAINER_WRITES_APPROVED==='true'?'تسجيل الدفعات مفعّل.':'تنبيه: تسجيل الدفعات موقوف مؤقتًا أثناء التحقق.' %> قاعدة الحساب: مبلغ متفق عليه لكل مجموعة، يُستحق للمحاضر عند انتهاء المجموعة (تغيير حالتها إلى «منتهية» من صفحة المجموعات). تسجيل الدفعة ينشئ مصروفًا مرتبطًا يخصم تلقائيًا من الحساب المختار (يظهر في صفحة المصروفات)، وإلغاء الدفعة يلغي المصروف معها. لا يمكن تسجيل دفعة تتجاوز مستحق المجموعة أو الرصيد المسجل للحساب المختار؛ الدفعات المقدمة موقوفة لحين اعتماد المالك قاعدتها.</div>
+<div class="grid c4">
+  <div class="stat"><div class="num"><%= totals.agreed.toLocaleString('ar-EG') %></div><div class="lbl">إجمالي متفق عليه (ج.م)</div></div>
+  <div class="stat"><div class="num"><%= totals.earned.toLocaleString('ar-EG') %></div><div class="lbl">مستحق — مجموعات منتهية (ج.م)</div></div>
+  <div class="stat"><div class="num"><%= totals.paid.toLocaleString('ar-EG') %></div><div class="lbl">مدفوع (ج.م)</div></div>
+  <div class="stat orange"><div class="num"><%= Math.abs(totals.balance).toLocaleString('ar-EG') %></div><div class="lbl"><%= totals.balance < 0 ? 'دفعات مقدمة — المدفوع يتجاوز المستحق (ج.م)' : 'رصيد مستحق (ج.م)' %></div></div>
+</div>
+<% list.forEach(T => { %>
+<div class="card">
+  <h2><%= T.name %> <% if (T.status!=='active') { %><span class="badge gray">غير نشط</span><% } %></h2>
+  <div class="grid c4" style="margin-bottom:12px">
+    <div class="stat"><div class="num"><%= T.agreedTotal.toLocaleString('ar-EG') %></div><div class="lbl">متفق عليه (ج.م)</div></div>
+    <div class="stat"><div class="num"><%= T.earned.toLocaleString('ar-EG') %></div><div class="lbl">مستحق (ج.م)</div></div>
+    <div class="stat"><div class="num"><%= T.paid.toLocaleString('ar-EG') %></div><div class="lbl">مدفوع (ج.م)</div></div>
+    <div class="stat orange"><div class="num"><%= Math.abs(T.balance).toLocaleString('ar-EG') %></div><div class="lbl"><%= T.balance < 0 ? 'دفعة مقدمة — المدفوع يتجاوز المستحق (ج.م)' : 'الرصيد (ج.م)' %></div></div>
+  </div>
+  <% if (!T.groups.length) { %><p class="muted">لا توجد مجموعات مرتبطة بهذا المحاضر.</p><% } %>
+  <% T.groups.forEach(G => { %>
+    <h3 style="font-size:14.5px;color:var(--teal-dark);margin:10px 0 6px"><%= G.name %> — <%= G.course %>
+      <span class="badge <%= G.status==='finished'?'green':G.status==='cancelled'?'red':'teal' %>"><%= {draft:'مسودة',open:'مفتوحة',nearly_full:'اقتربت من الاكتمال',full:'مكتملة العدد',running:'جارية',finished:'منتهية',cancelled:'ملغاة'}[G.status] || G.status %></span>
+      <% if (G.status==='finished' && G.agreed!==null) { %><span class="badge green">مستحق</span><% } %>
+    </h3>
+    <% if (canManage && writesEnabled) { %>
+    <form method="post" action="/accounting/trainers/terms" class="flex" style="margin-bottom:8px">
+      <input type="hidden" name="_csrf" value="<%= csrf %>">
+      <input type="hidden" name="group_id" value="<%= G.id %>">
+      <label style="margin:0">المبلغ المتفق عليه</label>
+      <input type="number" step="0.01" min="0" name="agreed_amount" value="<%= G.agreed!==null ? G.agreed : '' %>" placeholder="غير محدد" style="width:140px" required>
+      <input name="notes" value="<%= G.terms_notes || '' %>" placeholder="ملاحظة (اختياري)" style="width:220px">
+      <button class="btn sm">حفظ</button>
+    </form>
+    <% } else { %>
+    <p class="muted">المبلغ المتفق عليه: <%= G.agreed!==null ? Number(G.agreed).toLocaleString('ar-EG') + ' ج.م' : 'غير محدد' %></p>
+    <% } %>
+    <% if (!G.sessions.length) { %><p class="muted">لا محاضرات مسجلة لهذه المجموعة بعد.</p><% } else { %>
+    <table>
+      <tr><th>التاريخ</th><th>من</th><th>إلى</th><th>المدة (دقيقة)</th><th>الحالة</th></tr>
+      <% G.sessions.forEach(S => { let mins='—'; if (S.start_time && S.end_time) { const [h1,m1]=String(S.start_time).split(':').map(Number); const [h2,m2]=String(S.end_time).split(':').map(Number); mins=Math.max(0,(h2*60+m2)-(h1*60+m1)); } %>
+      <tr>
+        <td><%= new Date(S.session_date).toLocaleDateString('ar-EG') %></td>
+        <td><%= S.start_time ? String(S.start_time).slice(0,5) : '—' %></td>
+        <td><%= S.end_time ? String(S.end_time).slice(0,5) : '—' %></td>
+        <td><%= mins %></td>
+        <td><span class="badge <%= S.session_status==='done'?'green':S.session_status==='cancelled'?'red':S.session_status==='postponed'?'orange':'teal' %>"><%= {done:'تمت',scheduled:'مجدولة',cancelled:'ملغاة',postponed:'مؤجلة'}[S.session_status] || S.session_status %></span></td>
+      </tr>
+      <% }) %>
+    </table>
+    <% } %>
+  <% }) %>
+  <% const tPays = pays.filter(p => p.trainer_id === T.id); %>
+  <% if (tPays.length) { %>
+    <h3 style="font-size:14.5px;color:var(--teal-dark);margin:12px 0 6px">الدفعات المسجلة</h3>
+    <table>
+      <tr><th>التاريخ</th><th>المبلغ</th><th>المجموعة</th><th>الطريقة</th><th>الحساب</th><th>ملاحظات</th><th>سجّلها</th><th></th></tr>
+      <% tPays.forEach(P => { %>
+      <tr>
+        <td><%= new Date(P.created_at).toLocaleDateString('ar-EG') %></td>
+        <td><%= Number(P.amount).toLocaleString('ar-EG') %></td>
+        <td><%= P.group_name || '—' %></td>
+        <td><%= L.paymentMethod[P.method] || P.method || '—' %></td>
+        <td><%= P.account_name || '—' %></td>
+        <td><%= P.notes || '—' %></td>
+        <td><%= P.created_by_name || '—' %></td>
+        <td><% if (canVoid && writesEnabled) { %><form method="post" action="/accounting/trainers/payments/<%= P.id %>/void" class="flex" style="gap:6px"><input type="hidden" name="_csrf" value="<%= csrf %>"><input name="reason" placeholder="سبب الإلغاء *" style="width:140px" required><button class="btn danger sm">إلغاء</button></form><% } %></td>
+      </tr>
+      <% }) %>
+    </table>
+  <% } %>
+  <% if (canManage && writesEnabled) { %>
+  <details style="margin-top:10px"><summary class="btn ghost sm">تسجيل دفعة للمحاضر</summary>
+    <form method="post" action="/accounting/trainers/payments" class="flex mt">
+      <input type="hidden" name="_csrf" value="<%= csrf %>">
+      <input type="hidden" name="trainer_id" value="<%= T.id %>">
+      <input type="hidden" name="request_key" value="<%= requestKey() %>">
+      <input type="number" step="0.01" min="0.01" name="amount" placeholder="المبلغ *" style="width:130px" required>
+      <select name="group_id" required style="width:170px"><option value="">اختر المجموعة المستحقة</option><% T.groups.forEach(G => { %><option value="<%= G.id %>"><%= G.name %></option><% }) %></select>
+      <select name="method" required style="width:140px"><% Object.entries(L.paymentMethod).forEach(([k,v]) => { %><option value="<%= k %>"><%= v %></option><% }) %></select>
+      <select name="account_id" required style="width:150px"><% accounts.forEach(a => { %><option value="<%= a.id %>"><%= a.name %></option><% }) %></select>
+      <input name="notes" placeholder="ملاحظات" style="width:180px">
+      <button class="btn sm">تسجيل دفعة</button>
+    </form>
+  </details>
+  <% } %>
+</div>
+<% }) %>
+<% if (!list.length) { %><div class="card"><p class="muted">لا يوجد محاضرون مسجلون بعد.</p></div><% } %>
+<%- include('../partials/bottom') %>

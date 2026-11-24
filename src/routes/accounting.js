@@ -159,7 +159,11 @@ router.post('/expenses', requireCap('expenses.create'), async (req, res) => {
 router.post('/expenses/:id/void', requireCap('expenses.void'), async (req, res) => {
   const { reason } = req.body;
   if (!reason) return res.status(400).render('error', { title: 'سبب مطلوب', message: 'سبب الإلغاء إلزامي.' });
-  await q(`UPDATE expenses SET status='voided', void_reason=$1, voided_by=$2, voided_at=now() WHERE id=$3 AND status='active'`, [reason, req.user.id, req.params.id]);
+  try {await tx(async c=>{
+    await c.query('SELECT id FROM expenses WHERE id=$1 FOR UPDATE',[req.params.id]);
+    if((await c.query("SELECT to_regclass('public.trainer_payments') AS t")).rows[0].t && (await c.query('SELECT id FROM trainer_payments WHERE expense_id=$1',[req.params.id])).rowCount)throw Object.assign(new Error('ألغ الدفعة من حساب المحاضرين لإلغاء السجلين معًا.'),{status:409});
+    await c.query(`UPDATE expenses SET status='voided', void_reason=$1, voided_by=$2, voided_at=now() WHERE id=$3 AND status='active'`,[reason,req.user.id,req.params.id]);
+  });}catch(e){return res.status(e.status||500).render('error',{title:'لم يتم الإلغاء',message:e.status?e.message:'لم تتغير السجلات.'});}
   await audit(req, 'expense_voided', 'expense', req.params.id, { reason });
   res.redirect('/accounting/expenses');
 });
