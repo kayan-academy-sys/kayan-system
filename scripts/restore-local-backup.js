@@ -1,0 +1,5 @@
+#!/usr/bin/env node
+// Usage: node scripts/restore-local-backup.js encrypted.kayan
+// Explicit empty isolated TARGET_DATABASE_URL required. Password via private key file.
+const fs=require('fs');const {Client}=require('pg');const {decrypt}=require('../src/lib/local-backup-encryption');const {restore}=require('../src/lib/local-recovery');
+(async()=>{if(process.env.CONFIRM_ISOLATED_EMPTY_DATABASE!=='yes'||!process.env.TARGET_DATABASE_URL||!process.env.BACKUP_PASSWORD_FILE)throw Error('Explicit isolated-empty target and private password file required');const doc=await decrypt(JSON.parse(fs.readFileSync(process.argv[2],'utf8')),fs.readFileSync(process.env.BACKUP_PASSWORD_FILE,'utf8').replace(/\r?\n$/,''));const c=new Client({connectionString:process.env.TARGET_DATABASE_URL});await c.connect();try{const out=await restore(c,doc);console.log(JSON.stringify({restored:true,tables:out.tables}));}finally{await c.end();}})().catch(e=>{console.error('Restore refused or failed:',e.code||e.message);process.exitCode=1;});
