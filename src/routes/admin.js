@@ -16,7 +16,7 @@ router.get('/users', requireCap('users.manage', 'users.request'), async (req, re
   const { rows: users } = await q(`SELECT u.*, i.name AS invited_by_name FROM users u LEFT JOIN users i ON i.id=u.invited_by ORDER BY u.id`);
   const { rows: invites } = await q(`SELECT v.*, u.name AS created_by_name FROM invites v LEFT JOIN users u ON u.id=v.created_by ORDER BY v.id DESC`);
   const { rows: requests } = await q(`SELECT r.*, u.name AS requested_by_name FROM user_add_requests r JOIN users u ON u.id=r.requested_by ORDER BY r.id DESC`);
-  res.render('admin/users', { title: 'المستخدمون', users, invites, requests, roles: ROLES, assignableRoles: ASSIGNABLE_ROLES, inviteLink: null, canManage: can(req.user.role, 'users.manage') });
+  res.render('admin/users', { title: 'المستخدمون', users, invites, requests, roles: ROLES, assignableRoles: ASSIGNABLE_ROLES, inviteLink: null, canManage: can(req.user.roles, 'users.manage') });
 });
 
 router.post('/users/invite', requireCap('users.manage'), async (req, res) => {
@@ -35,6 +35,18 @@ router.post('/users/invite', requireCap('users.manage'), async (req, res) => {
   const { rows: invites } = await q(`SELECT v.*, u.name AS created_by_name FROM invites v LEFT JOIN users u ON u.id=v.created_by ORDER BY v.id DESC`);
   const { rows: requests } = await q(`SELECT r.*, u.name AS requested_by_name FROM user_add_requests r JOIN users u ON u.id=r.requested_by ORDER BY r.id DESC`);
   res.render('admin/users', { title: 'المستخدمون', users, invites, requests, roles: ROLES, assignableRoles: ASSIGNABLE_ROLES, inviteLink, canManage: true });
+});
+
+router.post('/users/:id/roles', requireCap('users.manage'), async(req,res)=>{
+ const role=String(req.body.role||'');let extras=req.body.extra_roles||[];if(!Array.isArray(extras))extras=[extras];
+ if(!ASSIGNABLE_ROLES.includes(role)||extras.some(x=>!ASSIGNABLE_ROLES.includes(x)))return res.status(400).render('error',{title:'دور غير صالح',message:'اختر أدوارا صحيحة، لا يمكن إضافة مدير النظام.'});
+ extras=[...new Set(extras)].filter(x=>x!==role).sort();
+ try{await tx(async c=>{const t=(await c.query('SELECT * FROM users WHERE id=$1 FOR UPDATE',[req.params.id])).rows[0];
+ if(!t)throw Object.assign(Error('المستخدم غير موجود.'),{status:404});
+ if(t.role==='admin'||t.extra_roles.includes('admin'))throw Object.assign(Error('لا يمكن تعديل مدير النظام الأصلي.'),{status:403});
+ await c.query('UPDATE users SET role=$1,extra_roles=$2,updated_at=now() WHERE id=$3',[role,extras,t.id]);
+ await c.query("INSERT INTO audit_log(user_id,action,entity,entity_id,details) VALUES($1,'user_roles_changed','user',$2,$3)",[req.user.id,String(t.id),JSON.stringify({before:{role:t.role,extra_roles:t.extra_roles},after:{role,extra_roles:extras}})]);
+ });res.redirect('/admin/users');}catch(e){res.status(e.status||500).render('error',{title:'تعذر تعديل الصلاحيات',message:e.status?e.message:'لم يتم الحفظ.'});}
 });
 
 router.post('/users/:id/toggle', requireCap('users.manage'), async (req, res) => {
