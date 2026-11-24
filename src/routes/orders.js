@@ -9,7 +9,7 @@ const router = express.Router();
 router.use(requireAuth, requireCap('orders.create', 'orders.view.all', 'orders.view.own'));
 
 function scopeOrders(req) {
-  if (can(req.user.role, 'orders.view.all')) return { cond: '', params: [] };
+  if (can(req.user.roles, 'orders.view.all')) return { cond: '', params: [] };
   return { cond: 'AND o.sales_user_id=$1', params: [req.user.id] };
 }
 
@@ -154,7 +154,7 @@ router.get('/:id', async (req, res) => {
     WHERE o.id=$1`, [req.params.id]);
   if (!rows.length) return res.status(404).render('error', { title: 'غير موجود', message: 'الحجز غير موجود.' });
   const order = rows[0];
-  if (!can(req.user.role, 'orders.view.all') && order.sales_user_id !== req.user.id) {
+  if (!can(req.user.roles, 'orders.view.all') && order.sales_user_id !== req.user.id) {
     return res.status(403).render('error', { title: 'غير مسموح', message: 'هذا الحجز يخص موظف مبيعات آخر.' });
   }
   const enrollments = (await q(`SELECT e.*, c.name AS course_name, g.name AS group_name FROM enrollments e JOIN courses c ON c.id=e.course_id LEFT JOIN groups g ON g.id=e.group_id WHERE e.order_id=$1`, [order.id])).rows;
@@ -166,7 +166,7 @@ router.get('/:id', async (req, res) => {
   }
   const paid = payments.filter(p => p.status === 'active').reduce((s, p) => s + parseFloat(p.amount), 0);
   const accounts = (await q(`SELECT * FROM financial_accounts WHERE active=TRUE ORDER BY id`)).rows;
-  res.render('orders/detail', { title: 'حجز #' + order.id, nav: 'orders', order, enrollments, payments, plan, installments, paid, remaining: parseFloat(order.total_price) - paid, accounts, canPay: can(req.user.role, 'payments.create'), canCancel: can(req.user.role, 'orders.cancel') });
+  res.render('orders/detail', { title: 'حجز #' + order.id, nav: 'orders', order, enrollments, payments, plan, installments, paid, remaining: parseFloat(order.total_price) - paid, accounts, canPay: can(req.user.roles, 'payments.create'), canCancel: can(req.user.roles, 'orders.cancel') });
 });
 
 // إلغاء الحجز (صلاحية خاصة + سبب + سجل مراجعة)
