@@ -49,6 +49,7 @@ app.use('/api/webhooks', require('./routes/webhooks'));
 app.use('/api/cron', require('./routes/cron'));
 
 app.use(csrfCheck);
+if(process.env.LOCAL_BACKUP_ENABLED==='true')app.use('/local-backup',require('./routes/local-backup')({pool:require('./db').pool,q:require('./db').q}));
 
 app.use('/', require('./routes/auth'));
 app.use('/admin', require('./routes/admin'));
