@@ -44,7 +44,7 @@ router.get('/:id', async (req, res) => {
     FROM sessions s LEFT JOIN users u ON u.id=s.postponed_by WHERE s.group_id=$1 ORDER BY s.session_date, s.start_time`, [group.id])).rows;
   const students = (await q(`SELECT e.id AS enrollment_id, cu.name, cu.phone, e.status, e.created_at FROM enrollments e JOIN customers cu ON cu.id=e.customer_id WHERE e.group_id=$1 AND e.status='active' ORDER BY cu.name`, [group.id])).rows;
   const booked = students.length;
-  res.render('groups/detail', { title: 'مجموعة ' + group.name, nav: 'groups', group, sessions, students, booked, available: group.capacity - booked, canManage: can(req.user.role, 'groups.manage') });
+  res.render('groups/detail', { title: 'مجموعة ' + group.name, nav: 'groups', group, sessions, students, booked, available: group.capacity - booked, canManage: can(req.user.roles, 'groups.manage') });
 });
 
 router.post('/:id/edit', requireCap('groups.manage'), async (req, res) => {
