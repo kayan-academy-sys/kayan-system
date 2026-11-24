@@ -94,7 +94,9 @@ router.post('/payments/:id/void', requireCap('payments.void'), async (req, res) 
   if (!p) return res.status(404).render('error', { title: 'غير موجودة', message: 'الدفعة غير موجودة.' });
   if (p.status === 'voided') return res.redirect('/accounting/payments');
   await tx(async (c) => {
+    await c.query('SELECT id FROM payments WHERE id=$1 FOR UPDATE',[p.id]);
     await c.query(`UPDATE payments SET status='voided', void_reason=$1, voided_by=$2, voided_at=now() WHERE id=$3`, [reason, req.user.id, p.id]);
+    await c.query("UPDATE invoices SET status='voided',void_reason=$1,voided_by=$2,voided_at=now() WHERE payment_id=$3 AND status!='voided'",[reason,req.user.id,p.id]);
     if (p.installment_id) {
       const i = (await c.query('SELECT * FROM installments WHERE id=$1', [p.installment_id])).rows[0];
       const paidInst = parseFloat((await c.query(`SELECT COALESCE(sum(amount),0) AS s FROM payments WHERE installment_id=$1 AND status='active'`, [p.installment_id])).rows[0].s);

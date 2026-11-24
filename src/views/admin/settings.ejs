@@ -18,4 +18,5 @@
     <button class="btn mt">حفظ</button>
   </form>
 </div>
+<% if(process.env.RECEIPTS_ENABLED==='true'){const terms=settings.find(s=>s.key==='invoice_terms'),v=settings.find(s=>s.key==='invoice_terms_version'); %><div class="card"><h2>بنود إيصال الاستلام</h2><p>تعديل مدير النظام فقط. أي تعديل يوقف الإصدار حتى اعتماد رقم النسخة وبصمة النص الكامل. النسخة الحالية: <%= v?.value||0 %></p><form method="post" action="/admin/invoice-terms"><input type="hidden" name="_csrf" value="<%= csrf %>"><textarea name="terms" rows="16" maxlength="20000" required><%= terms?.value||'' %></textarea><button class="btn">حفظ نسخة جديدة من البنود</button></form></div><% } %>
 <%- include('../partials/bottom') %>
