@@ -49,5 +49,6 @@ if ('serviceWorker' in navigator) {
   });
 })();
 </script>
+<% if(locals.user && process.env.LOCAL_BACKUP_ENABLED==='true' && [user.role,...(user.extra_roles||[])].some(r=>r==='admin'||r==='general_supervisor')) { %><script src="/static/local-backup-reminder.js?v=local-backup-v1" defer></script><% } %>
 </body>
 </html>
