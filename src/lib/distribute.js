@@ -8,7 +8,7 @@ async function presentSalesStaff() {
     SELECT u.id, u.name,
       (SELECT count(*) FROM leads l WHERE l.assigned_to=u.id AND l.status IN ('new','no_answer','interested','need_follow_up')) AS load
     FROM users u
-    WHERE u.role IN ('sales_staff','sales_team_leader') AND u.active=TRUE
+    WHERE (u.role IN ('sales_staff','sales_team_leader') OR u.extra_roles && ARRAY['sales_staff','sales_team_leader']::text[]) AND u.active=TRUE
       AND EXISTS (SELECT 1 FROM staff_presence sp WHERE sp.user_id=u.id AND sp.work_date=current_date AND sp.present=TRUE)
     ORDER BY load ASC, u.id ASC`);
   return rows;
