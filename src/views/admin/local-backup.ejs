@@ -1,0 +1,19 @@
+<%- include('../partials/top',{title,nav:'backup'}) %>
+<style>[hidden]{display:none!important}</style>
+<section class="card" style="max-width:780px;margin:20px auto">
+<h2>نسخة مشفّرة على جهازك</h2>
+<p id="due" class="alert <%= state.due?'err':'ok' %>"><%= state.due?'عليك نسخة لم يتأكد حفظها. نزّل نسخة محدثة الآن.':'تم تأكيد حفظ نسخة اليوم يدويًا.' %></p>
+<p>التذكير يوميًا الساعة ١ ظهرًا بتوقيت القاهرة، أو عند فتح البرنامج بعد فوات الموعد. لا يتم التنزيل والجهاز أو المتصفح مغلق.</p>
+<p>النسخة تحتوي بيانات النظام، بما فيها بيانات العملاء والحسابات وبيانات الدخول المحفوظة كـhash. تُشفَّر داخل متصفحك قبل حفظ الملف. ليست شيت إكسيل.</p>
+<label for="key">كلمة تشفير النسخة، ١٢ حرفًا على الأقل</label>
+<input id="key" type="password" minlength="12" autocomplete="new-password" style="width:100%;margin:10px 0">
+<label for="key2">أعد كلمة التشفير</label><input id="key2" type="password" autocomplete="new-password" style="width:100%;margin:10px 0">
+<p class="muted">احتفظ بها في مكان آمن منفصل عن الملف. لا ترسلها في محادثة. بدونها لا يمكن فتح النسخة. لا نحتفظ بها هنا.</p>
+<button class="btn" id="save" type="button">جهّز واحفظ النسخة المشفّرة</button>
+<button class="btn ghost" id="confirm" type="button" hidden>راجعت الملف وهو محفوظ على جهازي</button>
+<p id="result" role="status" aria-live="polite"></p>
+<p class="muted">بدء التنزيل ليس إثباتًا أن الملف اتحفظ. لا تؤكد الحفظ إلا بعد مراجعة الملف على جهازك. لو فات يوم، النسخة الجديدة هي بيانات وقت إنشائها، مش نسخة أمس بأثر رجعي.</p>
+<p class="muted">الاسترجاع يتم بأداة منفصلة في قاعدة فارغة، وليس فوق بيانات الشغل من هذه الشاشة. إعدادات حساب الاستضافة والملفات الخارجية ليست داخل هذه النسخة.</p>
+</section>
+<script src="/static/local-backup.js?v=<%= assetV %>" defer></script>
+<%- include('../partials/bottom') %>
