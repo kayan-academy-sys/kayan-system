@@ -108,6 +108,13 @@ router.get('/settings', requireCap('settings.manage'), async (req, res) => {
   res.render('admin/settings', { title: 'الإعدادات', settings: rows, saved: req.query.saved === '1' });
 });
 
+router.post('/invoice-terms',requireCap('settings.manage'),async(req,res)=>{
+ const terms=String(req.body.terms||'').trim();if(!terms||terms.length>20000)return res.status(400).render('error',{title:'بنود غير صالحة',message:'أدخل نص البنود الكامل، بحد أقصى ٢٠ ألف حرف.'});
+ await tx(async c=>{await c.query("INSERT INTO settings(key,value) VALUES ('invoice_terms_version','0'::jsonb),('invoice_terms',to_jsonb(''::text)) ON CONFLICT DO NOTHING");const rows=(await c.query("SELECT key,value FROM settings WHERE key IN ('invoice_terms','invoice_terms_version') ORDER BY key FOR UPDATE")).rows;const version=Number(rows.find(r=>r.key==='invoice_terms_version').value)+1;
+ await c.query("UPDATE settings SET value=to_jsonb($1::text),updated_by=$2,updated_at=now() WHERE key='invoice_terms'",[terms,req.user.id]);await c.query("UPDATE settings SET value=to_jsonb($1::int),updated_by=$2,updated_at=now() WHERE key='invoice_terms_version'",[version,req.user.id]);
+ await c.query("INSERT INTO audit_log(user_id,action,entity,entity_id,details) VALUES($1,'receipt_terms_changed','settings','invoice_terms',$2)",[req.user.id,JSON.stringify({version,sha256:require('node:crypto').createHash('sha256').update(terms,'utf8').digest('hex')})]);});res.redirect('/admin/settings?saved=1');
+});
+
 router.post('/settings', requireCap('settings.manage'), async (req, res) => {
   const days = parseInt(req.body.lead_reassign_days, 10);
   if (!Number.isInteger(days) || days < 1 || days > 365) {
