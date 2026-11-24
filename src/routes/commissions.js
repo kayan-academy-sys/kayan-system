@@ -25,10 +25,10 @@ accounting.get('/', async (req, res) => {
     SELECT cm.*, u.name AS sales_name, u.role AS sales_role
     FROM commission_months cm JOIN users u ON u.id=cm.sales_user_id
     WHERE cm.month=($1||'-01')::date ORDER BY cm.amount DESC, u.name`, [mkey]);
-  const salesUsers = (await q(`SELECT id, name, monthly_target FROM users WHERE role IN ('sales_manager','sales_team_leader','sales_staff') AND active=TRUE ORDER BY name`)).rows;
+  const salesUsers = (await q(`SELECT id, name, monthly_target FROM users WHERE (role IN ('sales_manager','sales_team_leader','sales_staff') OR extra_roles && ARRAY['sales_manager','sales_team_leader','sales_staff']::text[]) AND active=TRUE ORDER BY name`)).rows;
   res.render('accounting/commissions', {
     title: 'عمولات المبيعات', nav: 'commissions', rows, rule, defaults: DEFAULTS, methodLabels: METHOD_LABELS,
-    salesUsers, month: mkey, canManage: can(req.user.role, 'commissions.manage'), canExecute: can(req.user.role, 'commissions.execute'), saved: req.query.saved === '1'
+    salesUsers, month: mkey, canManage: can(req.user.roles, 'commissions.manage'), canExecute: can(req.user.roles, 'commissions.execute'), saved: req.query.saved === '1'
   });
 });
 
@@ -60,7 +60,7 @@ accounting.post('/generate', requireCap('commissions.manage'), async (req, res) 
   if (!rule.method) return res.status(400).render('error', { title: 'خطأ', message: 'حدّد قاعدة العمولة وطريقة التوزيع أولًا.' });
   const mkey = monthKeyOf(req.body.month) || currentMonthKey();
   const result = await tx(async (c) => {
-    const { rows: staff } = await c.query(`SELECT id FROM users WHERE role IN ('sales_manager','sales_team_leader','sales_staff') AND active=TRUE`);
+    const { rows: staff } = await c.query(`SELECT id FROM users WHERE (role IN ('sales_manager','sales_team_leader','sales_staff') OR extra_roles && ARRAY['sales_manager','sales_team_leader','sales_staff']::text[]) AND active=TRUE`);
     let touched = 0, skipped = 0;
     for (const s of staff) {
       const r = await computeMonth(s.id, mkey, rule);
@@ -126,7 +126,7 @@ leaderboard.get('/', async (req, res) => {
   const rule = await getRule();
   const mkey = monthKeyOf(req.query.month) || currentMonthKey();
   const users = (await q(
-    `SELECT id, name, role FROM users WHERE role IN ('sales_manager','sales_team_leader','sales_staff') AND active=TRUE ORDER BY name`
+    `SELECT id, name, role FROM users WHERE (role IN ('sales_manager','sales_team_leader','sales_staff') OR extra_roles && ARRAY['sales_manager','sales_team_leader','sales_staff']::text[]) AND active=TRUE ORDER BY name`
   )).rows;
   const rows = [];
   for (const u of users) {

@@ -61,12 +61,19 @@
     <tr><th>الاسم</th><th>البريد</th><th>الدور</th><th>الحالة</th><th>آخر دخول</th><th>أضيف بواسطة</th><th></th></tr>
     <% users.forEach(u => { %>
     <tr>
-      <td><%= u.name %></td><td dir="ltr"><%= u.email %></td><td><%= roles[u.role] %></td>
+      <td><%= u.name %></td><td dir="ltr"><%= u.email %></td><td><%= [u.role,...(u.extra_roles||[])].map(r=>roles[r]||r).join(" + ") %></td>
       <td><span class="badge <%= u.active?'green':'red' %>"><%= u.active?'نشط':'معطّل' %></span></td>
       <td class="muted"><%= u.last_login_at ? new Date(u.last_login_at).toLocaleString('ar-EG') : '—' %></td>
       <td class="muted"><%= u.invited_by_name || '—' %></td>
       <td>
         <% if (canManage && u.role !== 'admin') { %>
+        <details><summary>تعديل مهام الموظف</summary>
+        <form method="post" action="/admin/users/<%= u.id %>/roles">
+        <input type="hidden" name="_csrf" value="<%= csrf %>">
+        <label>الدور الأساسي</label><select name="role"><% assignableRoles.forEach(r=>{ %><option value="<%= r %>" <%= r===u.role?'selected':'' %>><%= roles[r] %></option><% }) %></select>
+        <fieldset><legend>مهام إضافية</legend><% assignableRoles.forEach(r=>{ %><label style="display:flex;gap:8px;align-items:center"><input style="width:auto" type="checkbox" name="extra_roles" value="<%= r %>" <%= (u.extra_roles||[]).includes(r)?'checked':'' %>><%= roles[r] %></label><% }) %></fieldset>
+        <p class="muted">كل دور يمنح جميع صلاحياته. الإضافة والحذف يسريان في الطلب التالي، دون تسجيل خروج.</p><button class="btn sm">حفظ مهام الموظف</button></form></details>
+
         <form class="inline" method="post" action="/admin/users/<%= u.id %>/toggle" onsubmit="return confirm('تأكيد تغيير حالة المستخدم؟')">
           <input type="hidden" name="_csrf" value="<%= csrf %>">
           <button class="btn <%= u.active?'danger':'ghost' %> sm"><%= u.active?'تعطيل':'تفعيل' %></button>

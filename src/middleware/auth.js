@@ -1,6 +1,6 @@
 const crypto = require('crypto');
 const { q } = require('../db');
-const { can } = require('../lib/permissions');
+const { can, rolesOf } = require('../lib/permissions');
 
 // تحميل المستخدم من الجلسة
 async function loadUser(req, res, next) {
@@ -8,13 +8,14 @@ async function loadUser(req, res, next) {
   req.user = null;
   const uid = req.session && req.session.userId;
   if (uid) {
-    const { rows } = await q('SELECT id, name, email, role, active FROM users WHERE id=$1', [uid]);
+    const { rows } = await q('SELECT id, name, email, role, extra_roles, active FROM users WHERE id=$1', [uid]);
     if (rows.length && rows[0].active) {
       req.user = rows[0];
+      req.user.roles=rolesOf(req.user);
       res.locals.user = rows[0];
-      res.locals.can = (cap) => can(rows[0].role, cap);
+      res.locals.can = (cap) => can(req.user.roles, cap);
     } else {
-      req.session = null;
+      req.session = {};
     }
   }
   // CSRF token per session
@@ -34,7 +35,7 @@ function requireAuth(req, res, next) {
 function requireCap(...caps) {
   return (req, res, next) => {
     if (!req.user) return res.redirect('/login');
-    if (caps.some(c => can(req.user.role, c))) return next();
+    if (caps.some(c => can(req.user.roles, c))) return next();
     res.status(403).render('error', { title: 'غير مسموح', message: 'ليس لديك صلاحية لتنفيذ هذه العملية.' });
   };
 }

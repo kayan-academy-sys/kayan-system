@@ -1,8 +1,9 @@
 <%- include('../partials/top', {title, nav:'reception'}) %>
+<div class="card"><h2>الاستقبال والكورسات والمجموعات</h2><p class="muted">مكان واحد للشغل اليومي. الروابط والتعديل حسب المهام التي حددها مدير النظام، دمج الواجهة لا يضيف صلاحيات تلقائيا.</p><div class="flex" style="flex-wrap:wrap;gap:8px"><% if(can('courses.view')||can('courses.manage')) { %><a class="btn ghost" href="/courses">الكورسات</a><% } %><% if(can('groups.view')||can('groups.manage')) { %><a class="btn ghost" href="/groups">المجموعات والمحاضرات</a><% } %><% if(can('trainers.manage')) { %><a class="btn ghost" href="/trainers">المحاضرون</a><% } %><a class="btn ghost" href="/reception/students">بحث الطلاب والحضور</a></div></div>
 <div class="card">
   <div class="flex between" style="margin-bottom:10px">
     <h2 style="border:none;margin:0;padding:0">محاضرات اليوم</h2>
-    <a class="btn ghost sm" href="/reception/students">🔎 بحث عن طالب</a>
+    <a class="btn ghost sm" href="/reception/students">بحث عن طالب</a>
   </div>
   <table>
     <tr><th>الموعد</th><th>المجموعة</th><th>الكورس</th><th>المدرب</th><th>الطلاب</th><th>الحالة</th><th>الحضور</th><th></th></tr>

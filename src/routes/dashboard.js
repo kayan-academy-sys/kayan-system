@@ -6,7 +6,7 @@ const { can } = require('../lib/permissions');
 const router = express.Router();
 
 router.get('/', requireAuth, async (req, res) => {
-  const role = req.user.role;
+  const role = req.user.roles;
   const data = { role };
   const one = async (sql, params) => (await q(sql, params)).rows[0];
 

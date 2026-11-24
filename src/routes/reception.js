@@ -38,7 +38,7 @@ router.get('/', async (req, res) => {
     WHERE i.status='pending' AND i.due_date <= current_date
     AND (SELECT COALESCE(sum(pay.amount),0) FROM payments pay WHERE pay.installment_id=i.id AND pay.status='active') < i.amount
     ORDER BY i.due_date LIMIT 10`)).rows;
-  res.render('reception/index', { title: 'لوحة الاستقبال', nav: 'reception', todaySessions, upcoming, startingGroups, absentLast, dueAmounts });
+  res.render('reception/index', { title: 'الاستقبال والكورسات والمجموعات', nav: 'reception', todaySessions, upcoming, startingGroups, absentLast, dueAmounts });
 });
 
 // بحث الطالب بالاسم أو الهاتف
@@ -76,7 +76,7 @@ router.get('/sessions/:id/attendance', requireCap('attendance.record', 'attendan
     (SELECT json_build_object('status',a.status,'notes',a.notes,'checked_at',a.checked_at) FROM attendance a WHERE a.session_id=$1 AND a.enrollment_id=e.id) AS att
     FROM enrollments e JOIN customers cu ON cu.id=e.customer_id
     WHERE e.group_id=$2 AND e.status='active' ORDER BY cu.name`, [s.id, s.group_id])).rows;
-  res.render('reception/attendance', { title: 'حضور: ' + s.group_name, nav: 'reception', s, students, canRecord: can(req.user.role, 'attendance.record') });
+  res.render('reception/attendance', { title: 'حضور: ' + s.group_name, nav: 'reception', s, students, canRecord: can(req.user.roles, 'attendance.record') });
 });
 
 router.post('/sessions/:id/attendance', requireCap('attendance.record'), async (req, res) => {

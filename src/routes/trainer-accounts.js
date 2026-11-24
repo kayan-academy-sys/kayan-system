@@ -55,7 +55,7 @@ router.get('/', async (req, res) => {
   const totals = list.reduce((a, T) => ({ agreed: a.agreed + T.agreedTotal, earned: a.earned + T.earned, paid: a.paid + T.paid }), { agreed: 0, earned: 0, paid: 0 });
   totals.balance = totals.earned - totals.paid;
   const accounts = (await q('SELECT * FROM financial_accounts WHERE active=TRUE ORDER BY id')).rows;
-  res.render('accounting/trainers', {title:'حساب المحاضرين',nav:'trainer-accounts',list,totals,pays,accounts,canManage:can(req.user.role,'expenses.create'),canVoid:can(req.user.role,'expenses.void'),writesEnabled:process.env.TRAINER_WRITES_APPROVED==='true',requestKey:()=>require('crypto').randomUUID()});
+  res.render('accounting/trainers', {title:'حساب المحاضرين',nav:'trainer-accounts',list,totals,pays,accounts,canManage:can(req.user.roles,'expenses.create'),canVoid:can(req.user.roles,'expenses.void'),writesEnabled:process.env.TRAINER_WRITES_APPROVED==='true',requestKey:()=>require('crypto').randomUUID()});
 });
 
 router.post('/terms',requireCap('expenses.create'),writable,async(req,res)=>{try{await service.setTerms({...req.body,userId:req.user.id});res.redirect('/accounting/trainers');}catch(e){fail(res,e);}});

@@ -50,7 +50,7 @@ async function reassignStaleLeads() {
       `, [String(days), exempt]);
     const { rows: staff } = await q(`
       SELECT u.id, (SELECT count(*) FROM leads l WHERE l.assigned_to=u.id AND l.status IN ('new','no_answer','interested','need_follow_up')) AS load
-      FROM users u WHERE u.role IN ('sales_staff','sales_team_leader') AND u.active=TRUE
+      FROM users u WHERE (u.role IN ('sales_staff','sales_team_leader') OR u.extra_roles && ARRAY['sales_staff','sales_team_leader']::text[]) AND u.active=TRUE
         AND EXISTS (SELECT 1 FROM staff_presence sp WHERE sp.user_id=u.id AND sp.work_date=current_date AND sp.present=TRUE)
       ORDER BY load ASC`);
     let moved = 0;
@@ -93,14 +93,9 @@ async function installmentAlerts() {
         AND NOT EXISTS (SELECT 1 FROM notifications n WHERE n.type='installment_due' AND n.link=('/accounting/installments') AND n.created_at::date=current_date AND n.body LIKE '%' || cu.name || '%')`);
     let count = 0;
     for (const r of rows) {
-      for (const role of ['accounting_manager', 'accounting_staff']) {
-        const { rows: us } = await q('SELECT id FROM users WHERE role=$1 AND active=TRUE', [role]);
-        for (const u of us) {
-          await notify(u.id, 'installment_due', r.overdue ? 'قسط متأخر' : 'قسط مستحق قريبًا',
-            `${r.customer_name}: قسط بقيمة ${r.amount} ج.م ${r.overdue ? 'متأخر منذ ' + new Date(r.due_date).toLocaleDateString('ar-EG') : 'يستحق ' + new Date(r.due_date).toLocaleDateString('ar-EG')}`, '/accounting/installments');
-          count++;
-        }
-      }
+      const {rows:us}=await q("SELECT id FROM users WHERE active=TRUE AND (role IN ('accounting_manager','accounting_staff') OR extra_roles && ARRAY['accounting_manager','accounting_staff']::text[])");
+      for(const u of us){await notify(u.id,'installment_due',r.overdue?'قسط متأخر':'قسط مستحق قريبًا',`${r.customer_name}: قسط بقيمة ${r.amount} ج.م`, '/accounting/installments');count++;}
+
     }
     return { alerts: count };
   });
