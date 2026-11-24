@@ -1,0 +1,8 @@
+<%- include('../partials/top',{title,nav:'invoices'}) %>
+<div class="alert info">الإيصال مرتبط بتحصيل مسجل ولا يضيف تحصيلا آخر. الإصدار والاعتماد يتطلبان نص البنود المعتمد ورقم نسخته. بعد الاعتماد يظهر للسيلز المرتبط بالحجز داخل النظام فقط. إلغاء التحصيل يلغي الإيصال المرتبط.</div>
+<% if(canCreate){ %><div class="card"><h2>إعداد مسودة إيصال</h2><form method="post" action="/accounting/invoices"><input type="hidden" name="_csrf" value="<%= csrf %>">
+<label>تحصيل مسجل، يُستمد منه المبلغ والعميل والحجز والسيلز</label><select name="payment_id" required><option value="">اختر تحصيلا نشطا بلا إيصال سابق</option><% payments.forEach(p=>{ %><option value="<%= p.id %>">تحصيل <%= p.id %> | حجز <%= p.order_id %> | <%= p.customer_name %> | <%= p.amount %> ج.م | <%= p.sales_name||'غير محدد' %></option><% }) %></select>
+<label>وذلك عن</label><input name="purpose" required><label>نوع العرض</label><input name="offer_type">
+<p class="muted">رقم تسلسلي تلقائي، وقد توجد فجوات عند إلغاء معاملة. البنود ثابتة وتُحفظ مع المسودة. تعديل القالب لمسؤول النظام فقط.</p><button class="btn">حفظ مسودة للمعاينة</button></form></div><% } %>
+<div class="card"><h2>الإيصالات</h2><table><tr><th>الرقم</th><th>العميل</th><th>المبلغ</th><th>السيلز</th><th>الحالة</th></tr><% rows.forEach(i=>{ %><tr><td><a href="/accounting/invoices/<%= i.id %>"><%= i.serial_no %></a></td><td><%= i.customer_name %></td><td><%= i.amount_pounds %>.<%= String(i.amount_piastres).padStart(2,'0') %></td><td><%= i.sales_name||'غير محدد' %></td><td><%= i.status==='voided'?'ملغي':i.status==='confirmed'?(i.synthetic?'مؤكد تجريبيًا':'معتمد'):'مسودة' %></td></tr><% }) %></table></div>
+<%- include('../partials/bottom') %>
