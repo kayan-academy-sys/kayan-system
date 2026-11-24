@@ -66,14 +66,7 @@ const CAPS = {
   ]
 };
 
-function can(role, cap) {
-  const list = CAPS[role] || [];
-  if (list.includes('*')) return true;
-  if (list.includes(cap)) return true;
-  const ns = cap.split('.')[0] + '.*';
-  return list.includes(ns);
-}
-
-function canAny(user, caps) { return caps.some(c => can(user.role, c)); }
-
-module.exports = { ROLES, SALES_ROLES, CAPS, can, canAny };
+function rolesOf(user) { return [...new Set([user?.role,...(Array.isArray(user?.extra_roles)?user.extra_roles:[])].filter(r=>Object.hasOwn(ROLES,r)))]; }
+function can(roleOrRoles, cap) { return (Array.isArray(roleOrRoles)?roleOrRoles:[roleOrRoles]).some(role=>{const list=CAPS[role]||[];return list.includes('*')||list.includes(cap)||list.includes(cap.split('.')[0]+'.*');}); }
+function canAny(user,caps){return caps.some(c=>can(rolesOf(user),c));}
+module.exports={ROLES,SALES_ROLES,CAPS,can,canAny,rolesOf};
