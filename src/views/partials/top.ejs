@@ -39,6 +39,7 @@
       <% } %>
       <% if (can('payments.view') || can('payments.create') || can('expenses.view') || can('accounts.view')) { %>
       <div class="section">الحسابات</div>
+      <% if(process.env.TRAINER_ACCOUNTS_ENABLED==='true') { %><a href="/accounting/trainers">حساب المحاضرين</a><% } %>
       <a href="/accounting" class="<%= locals.nav==='accounting'?'active':'' %>"><span class="ic2"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="9" r="6"/><path d="M14.5 5.5A6 6 0 1 1 9 15.8"/><path d="M7 9h4M9 7v4"/></svg></span> <span>الحسابات</span></a>
       <a href="/accounting/payments" class="<%= locals.nav==='payments'?'active':'' %>"><span class="ic2"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18"/><path d="M7 15h4"/></svg></span> <span>المدفوعات</span></a>
       <a href="/accounting/installments" class="<%= locals.nav==='installments'?'active':'' %>"><span class="ic2"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 10h18"/><path d="M8 15h3"/></svg></span> <span>الأقساط</span></a>
