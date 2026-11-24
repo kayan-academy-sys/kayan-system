@@ -9,7 +9,7 @@ const { requireAuth, requireCap } = require('../middleware/auth');
 const router = express.Router();
 router.use(requireAuth, requireCap('ai.use'));
 router.use((req,res,next)=>{
-  const scope=String(req.user.id)+':'+req.user.role;
+  const scope=String(req.user.id)+':'+req.user.roles.slice().sort().join(',');
   if(req.session.aiScope!==scope) req.session.aiHistory=[];
   req.session.aiScope=scope;
   next();
@@ -18,7 +18,7 @@ router.use((req,res,next)=>{
 async function answer(question, user) {
   const t = question.trim();
   const has = (...words) => words.some(w => t.includes(w));
-  const rc = cap => can(user.role, cap);
+  const rc = cap => can(user.roles || [user.role], cap);
   const denied = 'هذا السؤال خارج نطاق صلاحياتك في النظام.';
   try {
     if (has('متأخر') && has('قسط', 'أقساط', 'اقساط')) {
