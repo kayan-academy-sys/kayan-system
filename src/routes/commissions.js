@@ -76,9 +76,9 @@ accounting.post('/generate', requireCap('commissions.manage'), async (req, res) 
         [s.id, mkey + '-01', r.target, r.invoiced, r.collected, r.eligible, rule.method, rule.rate_in, rule.rate_over, r.amount, req.user.id]);
       if (up.rowCount) touched++;
     }
+    await audit(req,'commission.generate','commission_months',mkey,{rule,touched,skipped},c);
     return { touched, skipped };
   });
-  await audit(req, 'commission.generate', 'commission_months', mkey, { rule, ...result });
   res.redirect('/accounting/commissions?month=' + mkey + '&saved=1');
 });
 
@@ -86,15 +86,17 @@ async function setStatus(req, res, id, from, to, markPaid) {
   const params = [to, id, from];
   const extra = markPaid ? ', paid_at=now(), paid_by=$4' : '';
   if (markPaid) params.push(req.user.id);
-  const { rowCount } = await q(
-    `UPDATE commission_months SET status=$1${extra} WHERE id=$2 AND status=$3`, params);
-  if (!rowCount) return res.status(409).render('error', { title: 'خطأ', message: 'حالة العمولة لا تسمح بهذا الإجراء.' });
-  await audit(req, 'commission.' + to, 'commission_months', id, null);
+  const changed=await tx(async c=>{
+    const {rowCount}=await c.query(`UPDATE commission_months SET status=$1${extra} WHERE id=$2 AND status=$3`,params);
+    if(rowCount)await audit(req,'commission.'+to,'commission_months',id,null,c);
+    return rowCount;
+  });
+  if(!changed)return res.status(409).render('error',{title:'خطأ',message:'حالة العمولة لا تسمح بهذا الإجراء.'});
   res.redirect(req.get('referer') || '/accounting/commissions');
 }
 
-accounting.post('/:id/approve', requireCap('commissions.execute'), (req, res) => setStatus(req, res, req.params.id, 'pending', 'approved', false));
-accounting.post('/:id/pay', requireCap('commissions.execute'), (req, res) => setStatus(req, res, req.params.id, 'approved', 'paid', true));
+accounting.post('/:id/approve', requireCap('commissions.execute'), require('../lib/async-route')((req, res) => setStatus(req, res, req.params.id, 'pending', 'approved', false)));
+accounting.post('/:id/pay', requireCap('commissions.execute'), require('../lib/async-route')((req, res) => setStatus(req, res, req.params.id, 'approved', 'paid', true)));
 accounting.post('/:id/cancel', requireCap('commissions.execute'), async (req, res) => {
   const { rowCount } = await q(
     `UPDATE commission_months SET status='cancelled', note=$1 WHERE id=$2 AND status IN ('pending','approved')`,

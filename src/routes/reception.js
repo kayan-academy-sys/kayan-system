@@ -1,5 +1,5 @@
 const express = require('express');
-const { q } = require('../db');
+const { q, tx } = require('../db');
 const { requireAuth, requireCap } = require('../middleware/auth');
 const { audit } = require('../lib/audit');
 const { can } = require('../lib/permissions');
@@ -84,15 +84,19 @@ router.post('/sessions/:id/attendance', requireCap('attendance.record'), async (
   if (!s) return res.status(404).render('error', { title: 'غير موجودة', message: 'المحاضرة غير موجودة.' });
   const valid = ['present','absent','late','excused'];
   const entries = Object.entries(req.body).filter(([k]) => k.startsWith('att_'));
-  for (const [k, status] of entries) {
-    if (!valid.includes(status)) continue;
-    const enrollmentId = parseInt(k.slice(4), 10);
-    const notes = req.body['notes_' + enrollmentId] || null;
-    await q(`INSERT INTO attendance (session_id, enrollment_id, status, checked_by, notes) VALUES ($1,$2,$3,$4,$5)
-      ON CONFLICT (session_id, enrollment_id) DO UPDATE SET status=$3, checked_by=$4, checked_at=now(), notes=$5`,
-      [s.id, enrollmentId, status, req.user.id, notes]);
-  }
-  await audit(req, 'attendance_recorded', 'session', s.id, { count: entries.length });
+  try { await tx(async c=>{
+    const locked=(await c.query('SELECT * FROM sessions WHERE id=$1 FOR UPDATE',[s.id])).rows[0];
+    if(locked.status==='cancelled')throw Object.assign(new Error('المحاضرة ملغاة.'),{status:400});
+    for(const [key,status] of entries){
+      if(!/^att_[1-9]\d*$/.test(key)||!valid.includes(status))throw Object.assign(new Error('بيانات الحضور غير صالحة.'),{status:400});
+      const enrollmentId=Number(key.slice(4));
+      const enrollment=(await c.query("SELECT id FROM enrollments WHERE id=$1 AND group_id=$2 AND status='active' FOR SHARE",[enrollmentId,s.group_id])).rows[0];
+      if(!enrollment)throw Object.assign(new Error('الطالب ليس مسجلا في مجموعة المحاضرة.'),{status:400});
+      await c.query(`INSERT INTO attendance(session_id,enrollment_id,status,checked_by,notes) VALUES($1,$2,$3,$4,$5)
+        ON CONFLICT(session_id,enrollment_id) DO UPDATE SET status=$3,checked_by=$4,checked_at=now(),notes=$5`,[s.id,enrollmentId,status,req.user.id,req.body['notes_'+enrollmentId]||null]);
+    }
+    await audit(req,'attendance_recorded','session',s.id,{count:entries.length},c);
+  }); }catch(e){return res.status(e.status||500).render('error',{title:'تعذر حفظ الحضور',message:e.status?e.message:'لم تتغير السجلات.'});}
   res.redirect('/reception/sessions/' + s.id + '/attendance');
 });
 

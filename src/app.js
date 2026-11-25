@@ -84,4 +84,5 @@ app.use((err, req, res, next) => {
   res.status(500).render('error', { title: 'خطأ', message: 'حدث خطأ غير متوقع. تم تسجيله.' });
 });
 
+require('./lib/async-route').protectRouter(app._router);
 module.exports = app;

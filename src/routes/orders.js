@@ -27,6 +27,7 @@ router.get('/', async (req, res) => {
 
 router.get('/new', requireCap('orders.create'), async (req, res) => {
   const lead = req.query.lead_id ? (await q(`SELECT l.*, c.name AS customer_name, c.phone AS customer_phone, co.name AS course_name FROM leads l JOIN customers c ON c.id=l.customer_id LEFT JOIN courses co ON co.id=l.course_id WHERE l.id=$1`, [req.query.lead_id])).rows[0] : null;
+  if (lead && !can(req.user.roles,'leads.view.all') && lead.assigned_to !== req.user.id) return res.status(403).render('error',{title:'غير مسموح',message:'العميل يخص موظف مبيعات آخر.'});
   const courses = (await q(`SELECT * FROM courses WHERE status='active' ORDER BY name`)).rows;
   const packages = (await q(`SELECT p.*, (SELECT json_agg(pc.course_id) FROM package_courses pc WHERE pc.package_id=p.id) AS course_ids,
     (SELECT json_agg(c.name) FROM package_courses pc JOIN courses c ON c.id=pc.course_id WHERE pc.package_id=p.id) AS course_names
@@ -47,6 +48,7 @@ router.post('/', requireCap('orders.create'), async (req, res) => {
       if (lead_id) {
         leadRow = (await c.query('SELECT l.*, cu.id AS cid FROM leads l JOIN customers cu ON cu.id=l.customer_id WHERE l.id=$1', [lead_id])).rows[0];
         if (!leadRow) throw Object.assign(new Error('الفرصة غير موجودة.'), { status: 404 });
+        if (!can(req.user.roles,'leads.view.all') && leadRow.assigned_to !== req.user.id) throw Object.assign(new Error('العميل يخص موظف مبيعات آخر.'),{status:403});
         customerId = leadRow.customer_id;
       } else {
         if (!customer_name || !customer_phone) throw Object.assign(new Error('بيانات العميل إلزامية.'), { status: 400 });
@@ -126,13 +128,14 @@ router.post('/', requireCap('orders.create'), async (req, res) => {
         const cnt = parseInt((await c.query(`SELECT count(*) AS n FROM enrollments WHERE group_id=$1 AND status='active'`, [gid])).rows[0].n, 10);
         if (cnt >= g.capacity) await c.query(`UPDATE groups SET status='full' WHERE id=$1`, [gid]);
       }
+      await audit(req,'order_created','sales_order',orderId,{kind,total,payment_type},c);
       return { orderId, customerId, total };
     });
-    await audit(req, 'order_created', 'sales_order', result.orderId, { kind, total: result.total, payment_type });
-    await notifyRole('accounting_manager', 'order_created', 'حجز جديد #' + result.orderId, `حجز بقيمة ${result.total} ج.م (${payment_type === 'installments' ? 'تقسيط' : 'نقدي'}).`, '/orders/' + result.orderId);
+    try { await notifyRole('accounting_manager', 'order_created', 'حجز جديد #' + result.orderId, `حجز بقيمة ${result.total} ج.م (${payment_type === 'installments' ? 'تقسيط' : 'نقدي'}).`, '/orders/' + result.orderId); } catch(e) { console.error('Order saved; internal notification failed',e.code||'notification_error'); }
     res.redirect('/orders/' + result.orderId);
   } catch (e) {
     const status = e.status || 500;
+    if(status===403)return res.status(403).render('error',{title:'غير مسموح',message:e.message});
     const lead = lead_id ? (await q(`SELECT l.*, c.name AS customer_name, c.phone AS customer_phone FROM leads l JOIN customers c ON c.id=l.customer_id WHERE l.id=$1`, [lead_id])).rows[0] : null;
     const courses = (await q(`SELECT * FROM courses WHERE status='active' ORDER BY name`)).rows;
     const packages = (await q(`SELECT p.*, (SELECT json_agg(pc.course_id) FROM package_courses pc WHERE pc.package_id=p.id) AS course_ids,
@@ -173,17 +176,19 @@ router.get('/:id', async (req, res) => {
 router.post('/:id/cancel', requireCap('orders.cancel'), async (req, res) => {
   const { reason } = req.body;
   if (!reason) return res.status(400).render('error', { title: 'سبب مطلوب', message: 'سبب الإلغاء إلزامي.' });
-  const order = (await q('SELECT * FROM sales_orders WHERE id=$1', [req.params.id])).rows[0];
-  if (!order) return res.status(404).render('error', { title: 'غير موجود', message: 'الحجز غير موجود.' });
-  if (order.status === 'cancelled') return res.redirect('/orders/' + order.id);
-  const activePayments = (await q(`SELECT count(*) AS n FROM payments WHERE order_id=$1 AND status='active'`, [order.id])).rows[0].n;
+  const orderId=req.params.id;
   await tx(async (c) => {
-    await c.query(`UPDATE sales_orders SET status='cancelled', cancel_reason=$1, cancelled_by=$2, cancelled_at=now() WHERE id=$3`, [reason, req.user.id, order.id]);
-    await c.query(`UPDATE enrollments SET status='cancelled' WHERE order_id=$1`, [order.id]);
-    if (order.lead_id) await c.query(`UPDATE leads SET status='need_follow_up', updated_at=now() WHERE id=$1`, [order.lead_id]);
+    const order=(await c.query('SELECT * FROM sales_orders WHERE id=$1 FOR UPDATE',[orderId])).rows[0];
+    if(!order)throw Object.assign(new Error('الحجز غير موجود.'),{status:404});
+    if(order.status==='cancelled')return;
+    const activePayments=(await c.query("SELECT count(*) AS n FROM payments WHERE order_id=$1 AND status='active'",[order.id])).rows[0].n;
+    await c.query(`UPDATE sales_orders SET status='cancelled',cancel_reason=$1,cancelled_by=$2,cancelled_at=now() WHERE id=$3`,[reason,req.user.id,order.id]);
+    await c.query("UPDATE enrollments SET status='cancelled' WHERE order_id=$1",[order.id]);
+    if(order.lead_id)await c.query("UPDATE leads SET status='need_follow_up',updated_at=now() WHERE id=$1",[order.lead_id]);
+    await audit(req,'order_cancelled','sales_order',order.id,{reason,hadActivePayments:Number(activePayments)>0},c);
   });
-  await audit(req, 'order_cancelled', 'sales_order', order.id, { reason, hadActivePayments: parseInt(activePayments, 10) > 0 });
-  res.redirect('/orders/' + order.id);
+  res.redirect('/orders/' + orderId);
 });
 
+for(const layer of router.stack)for(const item of layer.route?.stack||[])if(item.handle.constructor.name==='AsyncFunction')item.handle=require('../lib/async-route')(item.handle);
 module.exports = router;

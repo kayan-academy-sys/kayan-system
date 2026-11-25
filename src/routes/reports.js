@@ -8,7 +8,11 @@ const router = express.Router();
 router.use(requireAuth, requireCap('reports.sales', 'reports.finance'));
 
 function csv(rows, headers) {
-  const esc = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+  const esc = v => {
+    let value=String(v == null ? '' : v);
+    if(typeof v==='string' && /^[\s]*[=+@-]/.test(value))value="'"+value;
+    return '"'+value.replace(/"/g,'""')+'"';
+  };
   return '﻿' + [headers.map(h => esc(h.label)).join(',')]
     .concat(rows.map(r => headers.map(h => esc(typeof h.get === 'function' ? h.get(r) : r[h.key])).join(','))).join('\n');
 }

@@ -9,7 +9,7 @@
 // ضمانات: التوقيع HMAC-SHA256 إلزامي، إعادة الإرسال (نفس message id) لا تكرر العميل،
 // رسائل statuses (تقارير التسليم) والمحادثات غير المرتبطة برقمنا لا تنشئ عملاء أبدًا.
 const crypto = require('crypto');
-const { q } = require('../../db');
+const { tx } = require('../../db');
 const { ingestWhatsAppLead } = require('./adapter');
 
 // GET: تحدي Meta (hub.mode=subscribe)
@@ -43,19 +43,21 @@ async function handlePayload(body) {
       for (const msg of value.messages) {
         // رقم هاتف مختلف (اشتراك متعدد الأرقام): تجاهل المحادثات غير المرتبطة
         const meta = value.metadata || {};
-        if (process.env.META_PHONE_NUMBER_ID && meta.phone_number_id && meta.phone_number_id !== process.env.META_PHONE_NUMBER_ID) {
+        if (process.env.META_PHONE_NUMBER_ID && meta.phone_number_id !== process.env.META_PHONE_NUMBER_ID) {
           ignored++; continue;
         }
         if (!msg.id || !msg.from) { ignored++; continue; }
         // منع التكرار بمعرّف رسالة Meta (إعادة إرسال الwebhook شائعة)
-        const dup = await q('SELECT 1 FROM processed_meta_messages WHERE message_id=$1', [msg.id]);
-        if (dup.rowCount) { duplicates++; continue; }
-        await q('INSERT INTO processed_meta_messages (message_id, phone) VALUES ($1,$2)', [msg.id, msg.from]);
         const name = contacts[msg.from]?.profile?.name || null;
         const text = msg.text?.body || msg.button?.text || msg.interactive?.button_reply?.title || null;
-        const r = await ingestWhatsAppLead({ phone: msg.from, name, text }, null);
+        const r = await tx(async c=>{
+          const inserted=await c.query('INSERT INTO processed_meta_messages(message_id,phone) VALUES($1,$2) ON CONFLICT(message_id) DO NOTHING RETURNING message_id',[msg.id,msg.from]);
+          if(!inserted.rowCount)return null;
+          return ingestWhatsAppLead({phone:msg.from,name,text},null,c);
+        });
+        if(!r){duplicates++;continue;}
         leadsCreated++;
-        results.push({ messageId: msg.id, leadId: r.leadId, autoAssigned: r.autoAssigned });
+        results.push({messageId:msg.id,leadId:r.leadId,autoAssigned:r.autoAssigned});
       }
     }
   }
