@@ -10,7 +10,14 @@
 // رسائل statuses (تقارير التسليم) والمحادثات غير المرتبطة برقمنا لا تنشئ عملاء أبدًا.
 const crypto = require('crypto');
 const { tx } = require('../../db');
-const { ingestWhatsAppLead } = require('./adapter');
+const { ingestWhatsAppLead, ingestExtractedNumber } = require('./adapter');
+const { extractEgyptianMobiles, senderDigits } = require('../../lib/phone-extract');
+
+// WHATSAPP_NUMBER_SOURCES: أرقام مصدر معتمدة مفصولة بفاصلة. عند ضبطها: لا يُعالَج غيرها،
+// ولا يصبح المرسل نفسه عميلًا؛ تُستخرج أرقام الموبايل من نص الرسالة فقط.
+function listSources() {
+  return (process.env.WHATSAPP_NUMBER_SOURCES || '').split(',').map(senderDigits).filter(Boolean);
+}
 
 // GET: تحدي Meta (hub.mode=subscribe)
 function verifyChallenge(query, config) {
@@ -30,7 +37,8 @@ function validSignature(rawBody, signatureHeader, appSecret) {
 
 // POST: معالجة الحمولة — يرجع { leadsCreated, duplicates, ignored }
 async function handlePayload(body) {
-  let leadsCreated = 0, duplicates = 0, ignored = 0;
+  let leadsCreated = 0, duplicates = 0, ignored = 0, numbersFound = 0, numbersSkipped = 0;
+  const sources = listSources();
   const results = [];
   for (const entry of body.entry || []) {
     for (const change of entry.changes || []) {
@@ -48,6 +56,27 @@ async function handlePayload(body) {
         }
         if (!msg.id || !msg.from) { ignored++; continue; }
         // منع التكرار بمعرّف رسالة Meta (إعادة إرسال الwebhook شائعة)
+        if (sources.length) {
+          if (!sources.includes(senderDigits(msg.from))) { ignored++; continue; }
+          if (msg.type !== 'text' || !msg.text?.body) { ignored++; continue; }
+          const ex = extractEgyptianMobiles(msg.text.body);
+          const out = await tx(async c => {
+            const ins = await c.query('INSERT INTO processed_meta_messages(message_id,phone) VALUES($1,$2) ON CONFLICT(message_id) DO NOTHING RETURNING message_id', [msg.id, msg.from]);
+            if (!ins.rowCount) return null;
+            const created = [];
+            let dup = 0;
+            for (const n of ex.numbers) {
+              const r = await ingestExtractedNumber(n, 'رقم من رسالة مصدر واتساب معتمد', c);
+              if (r.duplicate) dup++; else created.push({ leadId: r.leadId, autoAssigned: r.autoAssigned });
+            }
+            return { created, dup };
+          });
+          if (!out) { duplicates++; continue; }
+          numbersFound += ex.numbers.length; numbersSkipped += ex.skipped;
+          duplicates += out.dup; leadsCreated += out.created.length;
+          for (const x of out.created) results.push({ messageId: msg.id, ...x });
+          continue;
+        }
         const name = contacts[msg.from]?.profile?.name || null;
         const text = msg.text?.body || msg.button?.text || msg.interactive?.button_reply?.title || null;
         const r = await tx(async c=>{
@@ -61,7 +90,7 @@ async function handlePayload(body) {
       }
     }
   }
-  return { leadsCreated, duplicates, ignored, results };
+  return { leadsCreated, duplicates, ignored, numbersFound, numbersSkipped, results };
 }
 
 module.exports = { verifyChallenge, validSignature, handlePayload };
