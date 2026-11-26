@@ -4,7 +4,7 @@ const { test, before, after } = require('node:test'), assert = require('node:ass
 const crypto = require('crypto');
 const supertest = require('supertest');
 const { q, pool, migrate, resetDb, seedUsers, app } = require('./helpers');
-before(async () => { await migrate(); await resetDb(); await q('TRUNCATE processed_meta_messages'); await seedUsers(); await q("INSERT INTO courses(name) VALUES('تسويق رقمي')"); });
+before(async () => { await migrate(); await resetDb(); await q('TRUNCATE processed_meta_messages'); await seedUsers(); await q("INSERT INTO courses(name) VALUES('التسويق الرقمي'),('الجرافيك ديزاين'),('التصوير'),('المونتاج وتحرير الفيديو') ON CONFLICT DO NOTHING"); });
 after(() => pool.end());
 const count = async t => (await q('SELECT count(*)::int n FROM ' + t)).rows[0].n;
 const A = 'Bearer test-sheet-token-fictional';
@@ -18,7 +18,7 @@ test('بدون رمز أو برمز خاطئ: 401 ولا يُنشأ شيء', asy
   assert.equal(await count('customers'), 0);
 });
 test('صف صحيح: عميل واسم ومصدر وكورس، والنتيجة created', async () => {
-  const r = await post({ rows: [{ row_key: k('b'), phone: '٠١٠٠٠٠٠٠٤١١', name: 'أحمد تجريبي', source: 'فيسبوك', course: 'تسويق رقمي' }] });
+  const r = await post({ rows: [{ row_key: k('b'), phone: '٠١٠٠٠٠٠٠٤١١', name: 'أحمد تجريبي', source: 'فيسبوك', course: 'تسويق' }] });
   assert.equal(r.status, 200); assert.equal(r.body.results[0].status, 'created');
   const l = (await q("SELECT c.name, c.phone, l.source, l.course_id FROM leads l JOIN customers c ON c.id=l.customer_id")).rows[0];
   assert.equal(l.name, 'أحمد تجريبي'); assert.equal(l.phone, '01000000411'); assert.equal(l.source, 'facebook'); assert.ok(l.course_id);
@@ -52,4 +52,14 @@ test('التوزيع الآلي يعمل مع حاضر، والتدقيق بال
   const au = await q("SELECT details FROM audit_log WHERE action='leads_imported_from_sheet'");
   assert.ok(au.rowCount >= 1);
   assert.ok(!JSON.stringify(au.rows.map(x => x.details)).includes('أحمد'));
+});
+
+test('خيارات القائمة: تسويق وجرافيك يطابقان كورسات النظام، والمركّب بلا كورس مع ملاحظة', async () => {
+  const rows = [['g1', '01000000451', 'جرافيك'], ['g2', '01000000452', 'تسويق'], ['g3', '01000000453', 'مونتاج وتصوير'], ['g4', '01000000454', 'الدبلومة الكاملة'], ['g5', '01000000455', 'التسويق  الرقمي'], ['g6', '01000000456', 'المونتاج وتحرير الفيديو']]
+    .map(([id, phone, course]) => ({ row_key: k(id), phone, course }));
+  const r = await post({ rows });
+  assert.deepEqual(r.body.results.map(x => x.status), Array(6).fill('created'));
+  const got = (await q("SELECT c.phone, co.name cn, c.notes FROM leads l JOIN customers c ON c.id=l.customer_id LEFT JOIN courses co ON co.id=l.course_id WHERE c.phone LIKE '0100000045%' ORDER BY c.phone")).rows;
+  assert.deepEqual(got.map(x => x.cn), ['الجرافيك ديزاين', 'التسويق الرقمي', null, null, 'التسويق الرقمي', 'المونتاج وتحرير الفيديو']);
+  assert.ok(got[2].notes.includes('مونتاج وتصوير') && got[3].notes.includes('الدبلومة الكاملة'));
 });

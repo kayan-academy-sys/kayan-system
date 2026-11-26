@@ -65,6 +65,20 @@ function normEgPhone(v) {
   if (d.startsWith('+20')) d = '0' + d.slice(3); else if (d.startsWith('0020')) d = '0' + d.slice(4); else if (/^20\d{10}$/.test(d)) d = '0' + d.slice(2); else if (/^1[0125]\d{8}$/.test(d)) d = '0' + d;
   return LOCAL_MOBILE.test(d) ? d : null;
 }
+
+// خيارات قائمة الكورس في الشيت. الخيار المركّب (مونتاج وتصوير، الدبلومة الكاملة) لا يقابله كورس واحد في النظام،
+// فيُترك الكورس فارغًا ويبقى الاسم في ملاحظة العميل. لا نُنشئ كورسات جديدة.
+const normAr = t => String(t || '').normalize('NFKC').replace(/[\u064B-\u065F\u0670\u0640]/g, '').replace(/[أإآ]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه').replace(/\s+/g, ' ').trim().toLowerCase();
+const SHEET_COURSE_MAP = new Map([['تسويق', 'التسويق الرقمي'], ['جرافيك', 'الجرافيك ديزاين']].map(([k, v]) => [normAr(k), v]));
+const SHEET_COMBINED = new Set(['مونتاج وتصوير', 'الدبلومه الكامله'].map(normAr));
+async function matchSheetCourse(c, text) {
+  const n = normAr(text);
+  if (!n || SHEET_COMBINED.has(n)) return null;
+  const all = (await c.query("SELECT id, name FROM courses WHERE status='active'")).rows;
+  const target = SHEET_COURSE_MAP.get(n);
+  const hit = all.filter(x => normAr(x.name) === normAr(target || text));
+  return hit.length === 1 ? hit[0] : null; // مطابقة غير مؤكدة تُترك فارغة
+}
 router.post('/sheet-leads', feedAuth('sheetFeedToken'), async (req, res) => {
   const rows = req.body && req.body.rows;
   const okShape = Array.isArray(rows) && rows.length >= 1 && rows.length <= 50 && rows.every(r => r && typeof r === 'object'
@@ -82,7 +96,7 @@ router.post('/sheet-leads', feedAuth('sheetFeedToken'), async (req, res) => {
         const srcText = typeof r.source === 'string' ? r.source.trim().slice(0, 60) : '';
         const courseText = typeof r.course === 'string' ? r.course.trim().slice(0, 80) : '';
         const source = (SRC_MAP.find(([re]) => re.test(srcText)) || [0, 'other'])[1];
-        const course = courseText ? (await c.query('SELECT id FROM courses WHERE lower(trim(name)) = lower($1) LIMIT 1', [courseText])).rows[0] : null;
+        const course = await matchSheetCourse(c, courseText);
         const note = 'من شيت ارقام كيان سيستيم' + (srcText ? ' | المصدر: ' + srcText : '') + (courseText ? ' | الكورس: ' + courseText : '');
         const ex = await ingestExtractedNumber(phone, note, c, { name: name || undefined });
         if (ex.duplicate) { out.push({ row_key: r.row_key, status: 'duplicate' }); continue; }
