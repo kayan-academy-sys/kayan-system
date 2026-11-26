@@ -6,6 +6,7 @@ module.exports = {
   port: parseInt(process.env.PORT || '3000', 10),
   adminEmail: process.env.ADMIN_EMAIL || 'admin@kayan.local',
   adminPassword: process.env.ADMIN_PASSWORD || 'admin123456',
+  sheetFeedToken: process.env.SHEET_FEED_TOKEN || '',
   runCron: process.env.RUN_CRON !== 'false',
   cronSecret: process.env.CRON_SECRET || '',
   whatsappAdapter: process.env.WHATSAPP_ADAPTER || 'mock',

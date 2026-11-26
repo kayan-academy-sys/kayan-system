@@ -41,14 +41,14 @@ async function ingestWhatsAppLead({ phone, name, text, courseId }, req, client) 
 
 // أرقام مستخرجة من رسالة مصدر معتمد: تكرار الرقم أو وجود عميل محتمل مفتوح له لا ينشئ عميلًا ثانيًا
 const { phoneVariants } = require('../../lib/phone-extract');
-async function ingestExtractedNumber(local, sourceNote, c) {
+async function ingestExtractedNumber(local, sourceNote, c, opts = {}) {
   await c.query('SELECT pg_advisory_xact_lock(170134, hashtext($1))', [local]);
   const ex = (await c.query('SELECT id, phone FROM customers WHERE phone = ANY($1::text[]) ORDER BY id LIMIT 1', [phoneVariants(local)])).rows[0];
   if (ex) {
     const open = await c.query("SELECT 1 FROM leads WHERE customer_id=$1 AND status IN ('new','no_answer','interested','need_follow_up') LIMIT 1", [ex.id]);
     if (open.rowCount) return { duplicate: true };
   }
-  const r = await ingestWhatsAppLead({ phone: ex ? ex.phone : local, name: 'عميل واتساب (قائمة)', text: sourceNote }, null, c);
+  const r = await ingestWhatsAppLead({ phone: ex ? ex.phone : local, name: opts.name || 'عميل واتساب (قائمة)', text: sourceNote }, null, c);
   return { duplicate: false, ...r };
 }
 module.exports = { ingestWhatsAppLead, ingestExtractedNumber };
