@@ -66,18 +66,17 @@ function normEgPhone(v) {
   return LOCAL_MOBILE.test(d) ? d : null;
 }
 
-// خيارات قائمة الكورس في الشيت. الخيار المركّب (مونتاج وتصوير، الدبلومة الكاملة) لا يقابله كورس واحد في النظام،
-// فيُترك الكورس فارغًا ويبقى الاسم في ملاحظة العميل. لا نُنشئ كورسات جديدة.
+// خيارات قائمة الكورس في الشيت: تسويق وجرافيك اختصاران لكورسين موجودين، والباقي بنفس اسم الكورس في النظام.
+// لا نُنشئ كورسات هنا، والمطابقة غير المؤكدة تُترك فارغة وتبقى في ملاحظة العميل.
 const normAr = t => String(t || '').normalize('NFKC').replace(/[\u064B-\u065F\u0670\u0640]/g, '').replace(/[أإآ]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه').replace(/\s+/g, ' ').trim().toLowerCase();
 const SHEET_COURSE_MAP = new Map([['تسويق', 'التسويق الرقمي'], ['جرافيك', 'الجرافيك ديزاين']].map(([k, v]) => [normAr(k), v]));
-const SHEET_COMBINED = new Set(['مونتاج وتصوير', 'الدبلومه الكامله'].map(normAr));
 async function matchSheetCourse(c, text) {
   const n = normAr(text);
-  if (!n || SHEET_COMBINED.has(n)) return null;
+  if (!n) return null;
   const all = (await c.query("SELECT id, name FROM courses WHERE status='active'")).rows;
   const target = SHEET_COURSE_MAP.get(n);
   const hit = all.filter(x => normAr(x.name) === normAr(target || text));
-  return hit.length === 1 ? hit[0] : null; // مطابقة غير مؤكدة تُترك فارغة
+  return hit.length === 1 ? hit[0] : null;
 }
 router.post('/sheet-leads', feedAuth('sheetFeedToken'), async (req, res) => {
   const rows = req.body && req.body.rows;

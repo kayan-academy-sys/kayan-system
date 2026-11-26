@@ -4,7 +4,7 @@ const { test, before, after } = require('node:test'), assert = require('node:ass
 const crypto = require('crypto');
 const supertest = require('supertest');
 const { q, pool, migrate, resetDb, seedUsers, app } = require('./helpers');
-before(async () => { await migrate(); await resetDb(); await q('TRUNCATE processed_meta_messages'); await seedUsers(); await q("INSERT INTO courses(name) VALUES('التسويق الرقمي'),('الجرافيك ديزاين'),('التصوير'),('المونتاج وتحرير الفيديو') ON CONFLICT DO NOTHING"); });
+before(async () => { await migrate(); await resetDb(); await q('TRUNCATE processed_meta_messages'); await seedUsers(); await q("INSERT INTO courses(name) VALUES('التسويق الرقمي'),('الجرافيك ديزاين'),('التصوير'),('المونتاج وتحرير الفيديو'),('الذكاء الاصطناعي'),('مونتاج وتصوير'),('الدبلومة الكاملة') ON CONFLICT DO NOTHING"); });
 after(() => pool.end());
 const count = async t => (await q('SELECT count(*)::int n FROM ' + t)).rows[0].n;
 const A = 'Bearer test-sheet-token-fictional';
@@ -54,12 +54,12 @@ test('التوزيع الآلي يعمل مع حاضر، والتدقيق بال
   assert.ok(!JSON.stringify(au.rows.map(x => x.details)).includes('أحمد'));
 });
 
-test('خيارات القائمة: تسويق وجرافيك يطابقان كورسات النظام، والمركّب بلا كورس مع ملاحظة', async () => {
-  const rows = [['g1', '01000000451', 'جرافيك'], ['g2', '01000000452', 'تسويق'], ['g3', '01000000453', 'مونتاج وتصوير'], ['g4', '01000000454', 'الدبلومة الكاملة'], ['g5', '01000000455', 'التسويق  الرقمي'], ['g6', '01000000456', 'المونتاج وتحرير الفيديو']]
+test('خيارات القائمة الخمسة تطابق كورسات النظام، وغير المعروف يبقى في الملاحظة فقط', async () => {
+  const rows = [['g1', '01000000451', 'جرافيك'], ['g2', '01000000452', 'تسويق'], ['g3', '01000000453', 'مونتاج وتصوير'], ['g4', '01000000454', 'الدبلومة الكاملة'], ['g5', '01000000455', 'التسويق  الرقمي'], ['g6', '01000000456', 'الذكاء الاصطناعي'], ['g7', '01000000457', 'شيء غير معروف']]
     .map(([id, phone, course]) => ({ row_key: k(id), phone, course }));
   const r = await post({ rows });
-  assert.deepEqual(r.body.results.map(x => x.status), Array(6).fill('created'));
+  assert.deepEqual(r.body.results.map(x => x.status), Array(7).fill('created'));
   const got = (await q("SELECT c.phone, co.name cn, c.notes FROM leads l JOIN customers c ON c.id=l.customer_id LEFT JOIN courses co ON co.id=l.course_id WHERE c.phone LIKE '0100000045%' ORDER BY c.phone")).rows;
-  assert.deepEqual(got.map(x => x.cn), ['الجرافيك ديزاين', 'التسويق الرقمي', null, null, 'التسويق الرقمي', 'المونتاج وتحرير الفيديو']);
-  assert.ok(got[2].notes.includes('مونتاج وتصوير') && got[3].notes.includes('الدبلومة الكاملة'));
+  assert.deepEqual(got.map(x => x.cn), ['الجرافيك ديزاين', 'التسويق الرقمي', 'مونتاج وتصوير', 'الدبلومة الكاملة', 'التسويق الرقمي', 'الذكاء الاصطناعي', null]);
+  assert.ok(got[6].notes.includes('شيء غير معروف'));
 });
