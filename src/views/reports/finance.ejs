@@ -14,19 +14,21 @@
     <div class="stat"><div class="num"><%= totalIn.toLocaleString('ar-EG') %></div><div class="lbl">إجمالي الإيرادات</div></div>
     <div class="stat orange"><div class="num"><%= totalOut.toLocaleString('ar-EG') %></div><div class="lbl">إجمالي المصروفات</div></div>
     <div class="stat"><div class="num"><%= (totalIn-totalOut).toLocaleString('ar-EG') %></div><div class="lbl">صافي الحركة</div></div>
-    <div class="stat orange"><div class="num"><%= overdue.length %></div><div class="lbl">أقساط متأخرة</div></div>
+    <div class="stat orange"><div class="num"><%= overdueCount %></div><div class="lbl">أقساط متأخرة</div></div>
   </div>
 </div>
 <div class="grid c2">
   <div class="card">
-    <h2>الإيرادات (<%= payments.length %>)</h2>
+    <h2>الإيرادات (<%= paymentCount %>)</h2>
+    <% if(paymentCount > 100) { %><p class="muted">عرض أحدث ١٠٠ عملية فقط. الإجمالي والتصدير يشملان كل النتائج المطابقة.</p><% } %>
     <table><tr><th>التاريخ</th><th>العميل</th><th>المبلغ</th><th>الطريقة</th><th>الحساب</th></tr>
       <% payments.slice(0,100).forEach(p => { %><tr><td class="muted"><%= new Date(p.paid_at).toLocaleDateString('ar-EG') %></td><td><%= p.customer_name %></td><td><%= Number(p.amount).toLocaleString('ar-EG') %></td><td><%= L.paymentMethod[p.method] %></td><td><%= p.account_name %></td></tr><% }) %>
       <% if (!payments.length) { %><tr><td colspan="5" class="muted">لا توجد إيرادات.</td></tr><% } %>
     </table>
   </div>
   <div class="card">
-    <h2>المصروفات (<%= expenses.length %>)</h2>
+    <h2>المصروفات (<%= expenseCount %>)</h2>
+    <% if(expenseCount > 100) { %><p class="muted">عرض أحدث ١٠٠ عملية فقط. الإجمالي والتصدير يشملان كل النتائج المطابقة.</p><% } %>
     <table><tr><th>التاريخ</th><th>النوع</th><th>المبلغ</th><th>الحساب</th></tr>
       <% expenses.slice(0,100).forEach(e => { %><tr><td class="muted"><%= new Date(e.expense_date).toLocaleDateString('ar-EG') %></td><td><%= e.type_name %></td><td><%= Number(e.amount).toLocaleString('ar-EG') %></td><td><%= e.account_name %></td></tr><% }) %>
       <% if (!expenses.length) { %><tr><td colspan="4" class="muted">لا توجد مصروفات.</td></tr><% } %>
@@ -38,7 +40,8 @@
   </div>
 </div>
 <div class="card">
-  <h2>الأقساط المتأخرة</h2>
+  <h2>الأقساط المتأخرة (<%= overdueCount %>)</h2>
+  <% if(overdueCount > 500) { %><p class="muted">عرض أول ٥٠٠ قسط فقط حسب تاريخ الاستحقاق. العدد أعلاه يشمل كل الأقساط المتأخرة.</p><% } %>
   <table><tr><th>العميل</th><th>الهاتف</th><th>القيمة</th><th>الاستحقاق</th></tr>
     <% overdue.forEach(o => { %><tr><td><%= o.customer_name %></td><td dir="ltr"><%= o.phone %></td><td><span class="badge red"><%= Number(o.amount).toLocaleString('ar-EG') %></span></td><td class="muted"><%= new Date(o.due_date).toLocaleDateString('ar-EG') %></td></tr><% }) %>
     <% if (!overdue.length) { %><tr><td colspan="4" class="muted">لا توجد أقساط متأخرة.</td></tr><% } %>

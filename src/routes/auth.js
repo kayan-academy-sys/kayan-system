@@ -22,7 +22,11 @@ router.post('/login', loginRateLimit, async (req, res) => {
   req.session.userId = user.id;
   await q('UPDATE users SET last_login_at=now() WHERE id=$1', [user.id]);
   await audit(req, 'login', 'user', user.id, {});
-  res.redirect(next && next.startsWith('/') ? next : '/');
+  // Accept only same-origin absolute paths, never network-path references.
+  let decodedNext = '';
+  try { decodedNext = typeof next === 'string' ? decodeURIComponent(next) : ''; } catch (_) {}
+  const safeNext = typeof next === 'string' && /^\/(?![\/\\])/.test(next) && !/[\\\x00-\x20\x7f]/.test(next) && /^\/(?![\/\\])/.test(decodedNext) && !/[\\\x00-\x20\x7f]/.test(decodedNext);
+  res.redirect(safeNext ? next : '/');
 });
 
 router.post('/logout', async (req, res) => {
